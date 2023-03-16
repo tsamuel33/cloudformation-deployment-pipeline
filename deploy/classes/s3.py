@@ -1,10 +1,8 @@
-import boto3
 import os
+import boto3
 import logging
-import sys
 
 # Set up logger
-logging.basicConfig(stream=sys.stderr, level=logging.INFO, format='[%(asctime)s] %(levelname)s %(name)s@%(lineno)d: %(message)s')
 logger = logging.getLogger(os.path.basename(__file__))
 
 class AWSS3UploadBucket:

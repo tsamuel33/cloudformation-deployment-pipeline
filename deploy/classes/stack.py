@@ -2,6 +2,10 @@ import json
 # import yaml
 import os
 import boto3
+import logging
+
+# Set up logger
+logger = logging.getLogger(os.path.basename(__file__))
 
 class AWSCloudFormationStack:
     """
@@ -96,3 +100,25 @@ class AWSCloudFormationStack:
     #         ClientRequestToken='string',
     #         EnableTerminationProtection=True|False
     #     )
+    
+    # def create_stack_s3(cloudformation_client, stack_name, parameters,
+    #         account_id,template_url, execution_role_name):
+    #     stackcreateresponse = cloudformation_client.create_stack(
+    #         StackName=stack_name,
+    #         TemplateURL=template_url,
+    #         Parameters=parameters,
+    #         RoleARN="".join(('arn:aws:iam::', account_id, ':role/app/', execution_role_name)),
+    #         OnFailure='DELETE'
+    #     )
+    #     return stackcreateresponse
+    
+    # def update_stack_s3(cloudformation_client, stack_name, parameters,
+    #         account_id,template_url, execution_role_name):
+    #     stackupdateresponse = cloudformation_client.update_stack(
+    #         StackName=stack_name,
+    #         TemplateURL=template_url,
+    #         Parameters=parameters,
+    #         RoleARN="".join(('arn:aws:iam::', account_id, ':role/app/', execution_role_name)),
+    #         DisableRollback=False
+    #     )
+    #     return stackupdateresponse
