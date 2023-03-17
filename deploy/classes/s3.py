@@ -72,6 +72,29 @@ class AWSS3UploadBucket:
     #     logger.info("Uploading file: %s" % (file_name))
     #     self.s3_bucket.upload_file(filePath, objectKey)
     #     logger.info("File uploaded successfully")
-    
+
+    # def zip_folder(temp_path, artifact_dir, artifact_folder_name):
+    #     sourceFolder = "/".join((artifact_dir, artifact_folder_name))
+    #     zipFileName = "".join((artifact_folder_name, "_", ZIP_FILE_SUFFIX, ".zip"))
+    #     zipFilePath = "".join((temp_path, zipFileName))
+    #     with ZipFile(zipFilePath, "w") as zipObject:
+    #         for (root,dirs,files) in os.walk(sourceFolder):
+    #             for file in files:
+    #                 filePath = os.path.join(root, file)
+    #                 newPath = filePath.replace(sourceFolder, '')
+    #                 zipObject.write(filePath, newPath)
+    #         zipObject.close()
+    #     logger.info("Created: %s" % (zipFilePath))
+    #     return zipFileName
+
+    # def identify_main_frontend_js_files(artifact_dir, frontend_key):
+    #     frontendFolder = "/".join((artifact_dir, parameter_dict[frontend_key]))
+    #     mainFiles = []
+    #     files = os.listdir(frontendFolder)
+    #     for file in files:
+    #         if file.lower().startswith("main.") and file.lower().endswith(".js"):
+    #             mainFiles.append(file)
+    #     return mainFiles
+
     def upload_template(self, template, file_name):
         self.s3.put_object(Body=template,Bucket=self.bucket_name,Key=file_name)
