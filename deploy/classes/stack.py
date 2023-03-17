@@ -1,7 +1,8 @@
 import json
-import yaml
 import os
+import sys
 import boto3
+import botocore.exceptions
 import logging
 
 # Set up logger
@@ -32,25 +33,26 @@ class AWSCloudFormationStack:
     default_stack_prefix = "managed-app-"
 
     def __init__(self, template_file_name, parameter_file_name=None, region='us-east-1', stackname=None) -> None:
-        self.template_filename = self.get_file_name(template_file_name)
-        self.parameter_filename = self.get_file_name(parameter_file_name)
-        self.determine_stack_name(stackname)
+        self.template_filename = template_file_name
+        template_prefix = self.get_file_prefix(template_file_name)
+        self.parameter_filename = parameter_file_name
+        self.determine_stack_name(stackname, template_prefix)
         self.region = region
         self.cf = boto3.client('cloudformation', region_name=self.region)
 
     @staticmethod
-    def get_file_name(name) -> str:
+    def get_file_prefix(name) -> str:
         if name is not None:
             file = name.split(".")[0]
         else:
             file = ''
         return file
 
-    def determine_stack_name(self, name):
+    def determine_stack_name(self, name, prefix):
         if name is not None:
             self.stack_name = name
         else:
-            self.stack_name = self.default_stack_prefix + self.template_filename
+            self.stack_name = self.default_stack_prefix + prefix
 
     def create_parameter_list(parameter_file, dynamic_param_dict):
         parameterlist = []
@@ -74,7 +76,35 @@ class AWSCloudFormationStack:
         status = response['Stacks'][0]['StackStatus']
         return status
 
-    # TODO - set this up to take yaml and json
+    def validate_template(self, template_body):
+        try:
+            self.cf.validate_template(
+                TemplateBody=template_body
+            )
+        except botocore.exceptions.ClientError as err:
+            if err.response['Error']['Code'] == 'ValidationError':
+                error_prefix = "Error in file: {}. ".format(self.template_filename)
+                message = err.response['Error']['Message']
+                logger.error(error_prefix + message)
+                sys.exit(message)
+            else:
+                raise err
+
+    def validate_template_s3(self, template_url):
+        try:
+            self.cf.validate_template(
+                TemplateURL=template_url
+            )
+        except botocore.exceptions.ClientError as err:
+            if err.response['Error']['Code'] == 'ValidationError':
+                error_prefix = "Error in file: {}. ".format(self.template_filename)
+                message = err.response['Error']['Message']
+                logger.error(error_prefix + message)
+                sys.exit(message)
+            else:
+                raise err
+
+    # TODO - Ensure pipeline takes yaml and json
     @staticmethod
     def load_template(file):
         with open(file, 'r') as myFile:
