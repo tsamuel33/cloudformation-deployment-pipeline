@@ -37,7 +37,6 @@ class AWSCloudFormationStack:
         self.determine_stack_name(stackname)
         self.region = region
         self.cf = boto3.client('cloudformation', region_name=self.region)
-        self.s3 = boto3.client('s3', region_name=self.region)
 
     @staticmethod
     def get_file_name(name) -> str:
