@@ -20,7 +20,7 @@ class Configuration:
     """
 
     root_dir = Path(__file__).parents[2]
-    config_file = str(root_dir / 'config')
+    config_file = root_dir / 'config'
 
     def __init__(self):
         self.initialize_config()
@@ -36,7 +36,7 @@ class Configuration:
         
         self.config = configparser.ConfigParser()
         self.config.read_file(open(self.config_file))
-    
+
     def get_config_value(self, section, attribute):
         try:
             value = self.config[section].get(attribute)
@@ -45,3 +45,8 @@ class Configuration:
             message = "Configuration is missing section: {}".format(section)
             logger.error(message)
             raise ConfigurationError(message)
+        
+    def validate_configuration_setting(self, section, attribute, *criteria: tuple):
+        setting = self.get_config_value(section, attribute)
+        #TODO - Missing setting returns NoneType. Account for that.
+        print(setting)

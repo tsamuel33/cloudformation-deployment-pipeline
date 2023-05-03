@@ -4,6 +4,7 @@ import sys
 import boto3
 import botocore.exceptions
 import logging
+from pathlib import Path
 
 # Set up logger
 logger = logging.getLogger(os.path.basename(__file__))
@@ -30,13 +31,31 @@ class AWSCloudFormationStack:
         name of the CloudFormation stack
     """
 
-    default_stack_prefix = "managed-app-"
+    default_stack_prefix = "managed-app"
+    success_statuses = [
+        'CREATE_COMPLETE',
+        'UPDATE_COMPLETE'
+    ]
+    failure_statuses = [
+        'CREATE_FAILED',
+        'ROLLBACK_IN_PROGRESS',
+        'ROLLBACK_FAILED',
+        'ROLLBACK_COMPLETE',
+        'DELETE_IN_PROGRESS',
+        'DELETE_FAILED',
+        'DELETE_COMPLETE',
+        'UPDATE_FAILED',
+        'UPDATE_ROLLBACK_FAILED',
+        'UPDATE_ROLLBACK_COMPLETE'
+    ]
+    CF_CHECK_PERIOD_SECONDS = 30
+    TIMEOUT_SECONDS = 900
 
-    def __init__(self, template_file_name, parameter_file_name=None, region='us-east-1', stackname=None) -> None:
+    def __init__(self, template_file_name, parameter_file_name=None, stack_prefix=None, region='us-east-1', stackname=None) -> None:
         self.template_filename = template_file_name
         template_prefix = self.get_file_prefix(template_file_name)
         self.parameter_filename = parameter_file_name
-        self.determine_stack_name(stackname, template_prefix)
+        self.determine_stack_name(stackname, stack_prefix, template_prefix)
         self.region = region
         self.cf = boto3.client('cloudformation', region_name=self.region)
 
@@ -48,13 +67,15 @@ class AWSCloudFormationStack:
             file = ''
         return file
 
-    def determine_stack_name(self, name, prefix):
+    def determine_stack_name(self, name, prefix, resource):
         if name is not None:
             self.stack_name = name
+        elif prefix is not None:
+            self.stack_name = "-".join((prefix, resource))
         else:
-            self.stack_name = self.default_stack_prefix + prefix
+            self.stack_name = "-".join((self.default_stack_prefix, resource))
 
-    def create_parameter_list(parameter_file, dynamic_param_dict):
+    def create_parameter_list(self, parameter_file, dynamic_param_dict):
         parameterlist = []
         with open(parameter_file, 'r') as myParameterFile:
             paramData = myParameterFile.read()
@@ -69,7 +90,8 @@ class AWSCloudFormationStack:
                     'UsePreviousValue': False
                 }
             parameterlist.append(entry)
-        return parameterlist
+        self.parameters = parameterlist
+        # return parameterlist
 
     def get_stack(self):
         response = self.cf.describe_stacks(StackName=self.stack_name)
@@ -105,11 +127,35 @@ class AWSCloudFormationStack:
                 raise err
 
     # TODO - Ensure pipeline takes yaml and json
-    @staticmethod
-    def load_template(file):
+    # @staticmethod
+    def load_template(self, file):
         with open(file, 'r') as myFile:
             data = myFile.read()
-        return data
+        self.template = data
+        # return data
+
+    def get_template_size(self, file_path):
+        posix = Path(file_path)
+        self.size = posix.stat().st_size
+        # try:
+        #     templateFilePosix = Path(templateFilePath)
+        #     size = templateFilePosix.stat().st_size
+        #     if size > 51200:
+        #         logger.info('%s file size is larger than quota. Uploading to %s' % (TEMPLATE_FILE_NAME, uploadBucket))
+        #         upload_template(s3, cfTemplateYaml, uploadBucket, TEMPLATE_FILE_NAME)
+        #         s3ObjectLocation = "".join(('https://', uploadBucket, '.s3.amazonaws.com/', TEMPLATE_FILE_NAME))
+        #         createTemplateResponse = create_stack_s3(
+        #             cloudformation, STACK_NAME, parameterList, ACCOUNT_NUMBER,
+        #             s3ObjectLocation, STACK_EXECUTION_ROLE_NAME)
+        #     else:
+        #         createTemplateResponse = create_stack(
+        #             cloudformation, STACK_NAME, parameterList, parameterList,
+        #             cfTemplateYaml, STACK_EXECUTION_ROLE_NAME)
+        #     logger.info('Creation of stack: %s in progress...' % createTemplateResponse['StackId'])
+        # except botocore.exceptions.ClientError as error:
+        #     logger.error(error)
+        #     active = False
+        #     raise error
 
     def create_stack(self, parameters,
             account_id, template_string, execution_role_name):
