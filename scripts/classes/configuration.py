@@ -1,11 +1,10 @@
 import configparser
-from os.path import isfile, basename
 from pathlib import Path
 from .errors import ConfigurationError
 import logging
 
 # Set up logger
-logger = logging.getLogger(basename(__file__))
+logger = logging.getLogger(Path(__file__).name)
 
 class Configuration:
     """
@@ -27,13 +26,13 @@ class Configuration:
 
     def initialize_config(self):
         # Check if config file already exists
-        file_exists = isfile(self.config_file)
+        file_exists = Path.is_file(self.config_file)
         if not file_exists:
             message = "Configuration file does not exist at: {}. ".format(
                 self.config_file) + "Please create the file and commit " + \
                 "to the repository configuration options"
             raise ConfigurationError(message)
-        
+
         self.config = configparser.ConfigParser()
         self.config.read_file(open(self.config_file))
 
@@ -49,4 +48,4 @@ class Configuration:
     def validate_configuration_setting(self, section, attribute, *criteria: tuple):
         setting = self.get_config_value(section, attribute)
         #TODO - Missing setting returns NoneType. Account for that.
-        print(setting)
+        return setting

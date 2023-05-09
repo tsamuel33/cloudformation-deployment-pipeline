@@ -1,5 +1,4 @@
 import json
-import os
 import sys
 import boto3
 import botocore.exceptions
@@ -7,7 +6,7 @@ import logging
 from pathlib import Path
 
 # Set up logger
-logger = logging.getLogger(os.path.basename(__file__))
+logger = logging.getLogger(Path(__file__).name)
 
 class AWSCloudFormationStack:
     """
@@ -48,8 +47,6 @@ class AWSCloudFormationStack:
         'UPDATE_ROLLBACK_FAILED',
         'UPDATE_ROLLBACK_COMPLETE'
     ]
-    CF_CHECK_PERIOD_SECONDS = 30
-    TIMEOUT_SECONDS = 900
 
     def __init__(self, template_file_name, parameter_file_name=None, stack_prefix=None, region='us-east-1', stackname=None) -> None:
         self.template_filename = template_file_name

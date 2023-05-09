@@ -1,9 +1,9 @@
-import os
+from pathlib import Path
 import boto3
 import logging
 
 # Set up logger
-logger = logging.getLogger(os.path.basename(__file__))
+logger = logging.getLogger(Path(__file__).name)
 
 class AWSS3UploadBucket:
     """
