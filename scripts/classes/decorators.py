@@ -4,7 +4,7 @@ from sys import exit
 
 # Decorator to output Boto3 errors in the format set by the logger so
 # errors are easier to see in the output
-def boto3_clienterror_decorator(logger):
+def boto3_error_decorator(logger):
     def error_decorator(func):
         @wraps(func)
         def error_wrapper(*args, **kwargs):

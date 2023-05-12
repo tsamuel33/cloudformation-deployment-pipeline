@@ -1,6 +1,6 @@
 import boto3
 import logging
-from .decorators import boto3_clienterror_decorator
+from .decorators import boto3_error_decorator
 from pathlib import Path
 
 # Set up logger
@@ -34,7 +34,7 @@ class AWSS3UploadBucket:
         self.s3_bucket = s3_resource.Bucket(self.bucket_name)
         self.versioning_enabled = self.s3_bucket.Versioning().status
 
-    @boto3_clienterror_decorator(logger)
+    @boto3_error_decorator(logger)
     def get_cf_bucket(self, region, bucket_name=None):
         bucket_list = self.s3.list_buckets()
         buckets = bucket_list['Buckets']
@@ -99,7 +99,7 @@ class AWSS3UploadBucket:
     #             mainFiles.append(file)
     #     return mainFiles
 
-    @boto3_clienterror_decorator(logger)
+    @boto3_error_decorator(logger)
     def upload_template(self, template_location, file_name):
         with open(template_location, "rb") as template:
             response = self.s3.put_object(Body=template,Bucket=self.bucket_name,Key=file_name)
