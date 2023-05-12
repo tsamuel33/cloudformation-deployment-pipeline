@@ -1,6 +1,7 @@
-from pathlib import Path
 import boto3
 import logging
+from .decorators import boto3_clienterror_decorator
+from pathlib import Path
 
 # Set up logger
 logger = logging.getLogger(Path(__file__).name)
@@ -22,23 +23,25 @@ class AWSS3UploadBucket:
         boolean stating if an S3 bucket exists in the account for template upload
     s3_bucket : object
         object representing the S3 bucket used to upload large CloudFormation templates
+    versioning_enabled : NoneType or str
+        represents if versioning is enabled on the S3 bucket
     """
 
     def __init__(self, region='us-east-1', upload_bucket_name=None) -> None:
         self.s3 = boto3.client('s3', region_name=region, verify=False) #TODO - Remove verify=False after testing is complete
-        s3_resource = boto3.resource('s3', region_name=region)
+        s3_resource = boto3.resource('s3', region_name=region, verify=False) #TODO - Remove verify=False after testing is complete
         self.get_cf_bucket(region, upload_bucket_name)
         self.s3_bucket = s3_resource.Bucket(self.bucket_name)
+        self.versioning_enabled = self.s3_bucket.Versioning().status
 
+    @boto3_clienterror_decorator(logger)
     def get_cf_bucket(self, region, bucket_name=None):
         bucket_list = self.s3.list_buckets()
         buckets = bucket_list['Buckets']
-        bucket = ''
         parsed_response = self.parse_bucket_list(buckets, region, bucket_name)
         self.bucket_name = parsed_response[0]
         self.bucket_exists = parsed_response[1]
-        return bucket
-    
+
     def parse_bucket_list(self, parsing_list, region, target_name=None, target_prefix='cf-templates-'):
         s3_bucket = ''
         bucket_exists = True
@@ -96,5 +99,14 @@ class AWSS3UploadBucket:
     #             mainFiles.append(file)
     #     return mainFiles
 
-    def upload_template(self, template, file_name):
-        self.s3.put_object(Body=template,Bucket=self.bucket_name,Key=file_name)
+    @boto3_clienterror_decorator(logger)
+    def upload_template(self, template_location, file_name):
+        with open(template_location, "rb") as template:
+            response = self.s3.put_object(Body=template,Bucket=self.bucket_name,Key=file_name)
+            if self.versioning_enabled is not None:
+                version_id = response['VersionId']
+                template.close()
+                return version_id
+            else:
+                template.close()
+                return None
