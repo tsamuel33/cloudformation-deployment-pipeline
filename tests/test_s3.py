@@ -40,7 +40,7 @@ class TestS3Buckets:
     def test_file_upload(self, default_bucket):
         self.create_test_file(self.upload_filename)
         file_location = Path(__file__).parents[1] / self.upload_filename
-        version_id = default_bucket.upload_template(file_location, self.upload_filename)
+        version_id = default_bucket.upload_file(file_location, self.upload_filename)
         if version_id is not None:
             default_bucket.s3.delete_object(Bucket=default_bucket.bucket_name, Key=self.upload_filename,VersionId=version_id)
         else:

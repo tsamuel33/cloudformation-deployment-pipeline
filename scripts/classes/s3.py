@@ -70,12 +70,20 @@ class AWSS3UploadBucket:
 
     # TODO - Update this function when adding Lambda and API Gateway functionality
     # TODO - modify this to be a generic S3 bucket class and create a subclass for Lambda/API gateway
-    # def upload_object(self, temp_path, folder_name, file_name):
-    #     filePath = "/".join((temp_path, file_name))
-    #     objectKey = "/".join((folder_name, file_name))
-    #     logger.info("Uploading file: %s" % (file_name))
-    #     self.s3_bucket.upload_file(filePath, objectKey)
-    #     logger.info("File uploaded successfully")
+    # TODO - Allow users to specify which folder they want to upload files to
+    @boto3_error_decorator(logger)
+    def upload_file(self, file_location, file_name):
+        with open(file_location, "rb") as template:
+            logger.info("Uploading file: {}".format(file_name))
+            response = self.s3.put_object(Body=template,Bucket=self.bucket_name,Key=file_name)
+            logger.info("File uploaded successfully")
+            if self.versioning_enabled is not None:
+                version_id = response['VersionId']
+                template.close()
+                return version_id
+            else:
+                template.close()
+                return None
 
     # def zip_folder(temp_path, artifact_dir, artifact_folder_name):
     #     sourceFolder = "/".join((artifact_dir, artifact_folder_name))
@@ -90,24 +98,3 @@ class AWSS3UploadBucket:
     #         zipObject.close()
     #     logger.info("Created: %s" % (zipFilePath))
     #     return zipFileName
-
-    # def identify_main_frontend_js_files(artifact_dir, frontend_key):
-    #     frontendFolder = "/".join((artifact_dir, parameter_dict[frontend_key]))
-    #     mainFiles = []
-    #     files = os.listdir(frontendFolder)
-    #     for file in files:
-    #         if file.lower().startswith("main.") and file.lower().endswith(".js"):
-    #             mainFiles.append(file)
-    #     return mainFiles
-
-    @boto3_error_decorator(logger)
-    def upload_template(self, template_location, file_name):
-        with open(template_location, "rb") as template:
-            response = self.s3.put_object(Body=template,Bucket=self.bucket_name,Key=file_name)
-            if self.versioning_enabled is not None:
-                version_id = response['VersionId']
-                template.close()
-                return version_id
-            else:
-                template.close()
-                return None
