@@ -28,21 +28,22 @@ class AWSS3UploadBucket:
     """
 
     def __init__(self, region='us-east-1', upload_bucket_name=None) -> None:
-        self.s3 = boto3.client('s3', region_name=region, verify=False) #TODO - Remove verify=False after testing is complete
-        s3_resource = boto3.resource('s3', region_name=region, verify=False) #TODO - Remove verify=False after testing is complete
-        self.get_cf_bucket(region, upload_bucket_name)
+        self.region = region
+        self.s3 = boto3.client('s3', region_name=self.region, verify=False) #TODO - Remove verify=False after testing is complete
+        s3_resource = boto3.resource('s3', region_name=self.region, verify=False) #TODO - Remove verify=False after testing is complete
+        self.get_cf_bucket(upload_bucket_name)
         self.s3_bucket = s3_resource.Bucket(self.bucket_name)
         self.versioning_enabled = self.s3_bucket.Versioning().status
 
     @boto3_error_decorator(logger)
-    def get_cf_bucket(self, region, bucket_name=None):
+    def get_cf_bucket(self, bucket_name=None):
         bucket_list = self.s3.list_buckets()
         buckets = bucket_list['Buckets']
-        parsed_response = self.parse_bucket_list(buckets, region, bucket_name)
+        parsed_response = self.parse_bucket_list(buckets, bucket_name)
         self.bucket_name = parsed_response[0]
         self.bucket_exists = parsed_response[1]
 
-    def parse_bucket_list(self, parsing_list, region, target_name=None, target_prefix='cf-templates-'):
+    def parse_bucket_list(self, parsing_list, target_name=None, target_prefix='cf-templates-'):
         s3_bucket = ''
         bucket_exists = True
         if target_name is not None:
@@ -55,7 +56,7 @@ class AWSS3UploadBucket:
         # Look for default CF upload bucket if one is not provided or if provided bucket doesn't exist
         if s3_bucket == '':
             for b in parsing_list:
-                if b['Name'].startswith(target_prefix) and b['Name'].endswith(region):
+                if b['Name'].startswith(target_prefix) and b['Name'].endswith(self.region):
                     s3_bucket = b['Name']
         if s3_bucket == '':
             message1 = "Default CloudFormation bucket does not exist in account."
