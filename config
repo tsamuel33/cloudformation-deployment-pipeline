@@ -1,0 +1,27 @@
+[DEFAULT]
+github_secret_type = repository
+stack_execution_role_name = StackExecutionRole
+cloudformation_upload_bucket_name = None
+sam_upload_bucket_name = None
+cf_check_period_seconds = 30
+timeout_seconds = 900
+
+[dev]
+environment = dev
+
+[test]
+environment = test
+
+[main]
+environment = prod
+github_secret_type = deployments
+account_number_secret_name = PROD_AWS_ACCOUNT_NUMBER
+template_mapping_file_name = Placeholder
+parameter_mapping_file_name = Placeholder
+
+[<branch_name>]
+environment = <ENVIRONMENT_NAME>
+github_secret_type = deployment
+template_timeout_seconds = 900
+stack_execution_role_name = path/StackExecutionRoleName
+account_number_secret_name = PROD_AWS_ACCOUNT_NUMBER

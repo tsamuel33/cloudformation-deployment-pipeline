@@ -20,9 +20,16 @@ class Configuration:
 
     root_dir = Path(__file__).parents[2]
     config_file = root_dir / 'config'
+    required_settings = [
+        "environment",
+        {"github_secret_type": ["repository", "deployment"]},
+        "stack_execution_role_name",
+        "account_number_secret_name"
+    ]
 
-    def __init__(self):
+    def __init__(self, branch):
         self.initialize_config()
+        self.section = branch
 
     def initialize_config(self):
         # Check if config file already exists
@@ -36,16 +43,31 @@ class Configuration:
         self.config = configparser.ConfigParser()
         self.config.read_file(open(self.config_file))
 
-    def get_config_value(self, section, attribute):
+    # TODO - If config value is wrapped in quotations, validation test fails. Ease this contraint
+    def get_config_value(self, attribute):
         try:
-            value = self.config[section].get(attribute)
+            value = self.config[self.section].get(attribute)
             return value
         except KeyError:
-            message = "Configuration is missing section: {}".format(section)
+            message = "Configuration is missing section: {}".format(self.section)
             logger.error(message)
             raise ConfigurationError(message)
         
-    def validate_configuration_setting(self, section, attribute, *criteria: tuple):
-        setting = self.get_config_value(section, attribute)
-        #TODO - Missing setting returns NoneType. Account for that.
-        return setting
+    # Ensure that required settings exist in the pipeline config
+    def validate_configuration(self):
+        logger.info("Validating pipeline configuration for branch: {}".format(self.section))
+        for item in self.required_settings:
+            if type(item) == str:
+                setting = self.get_config_value(item)
+            elif type(item) == dict:
+                key = list(item.keys())[0]
+                values = item[key]
+                setting = self.get_config_value(key)
+                if setting not in values:
+                    message = "Required setting ({}) has invalid value: {}. Valid entries are: {}".format(key, setting, ", ".join(values))
+                    logger.error(message)
+                    raise ConfigurationError(message)
+            if setting is None:
+                message = "Required setting ({}) is missing from section {} of the config file.".format(item, self.section)
+                logger.error(message)
+                raise ConfigurationError(message)
