@@ -30,6 +30,8 @@ class Configuration:
     def __init__(self, branch):
         self.initialize_config()
         self.section = branch
+        self.validate_configuration()
+        self.environment = self.get_config_value("environment")
 
     def initialize_config(self):
         # Check if config file already exists
@@ -37,7 +39,7 @@ class Configuration:
         if not file_exists:
             message = "Configuration file does not exist at: {}. ".format(
                 self.config_file) + "Please create the file and commit " + \
-                "to the repository configuration options"
+                "to the repository"
             raise ConfigurationError(message)
 
         self.config = configparser.ConfigParser()

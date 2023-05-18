@@ -5,6 +5,7 @@ cloudformation_upload_bucket_name = None
 sam_upload_bucket_name = None
 cf_check_period_seconds = 30
 timeout_seconds = 900
+change_set_before_deploy = false
 
 [dev]
 environment = dev
@@ -16,8 +17,8 @@ environment = test
 environment = prod
 github_secret_type = deployments
 account_number_secret_name = PROD_AWS_ACCOUNT_NUMBER
-template_mapping_file_name = Placeholder
-parameter_mapping_file_name = Placeholder
+all_env_template_mapping_file_name = Placeholder
+all_env_parameter_mapping_file_name = Placeholder
 
 [<branch_name>]
 environment = <ENVIRONMENT_NAME>

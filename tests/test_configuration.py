@@ -9,3 +9,5 @@ class TestConfiguration:
     def test_required_settings_entered(self):
         self.configuration.validate_configuration()
 
+    def test_sample_environment(self):
+        assert self.configuration.environment == "<ENVIRONMENT_NAME>"
