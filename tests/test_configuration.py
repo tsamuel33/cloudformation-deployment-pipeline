@@ -1,5 +1,3 @@
-import pytest
-# from pathlib import Path
 from scripts.classes.configuration import Configuration
 
 class TestConfiguration:

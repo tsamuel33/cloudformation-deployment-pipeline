@@ -1,27 +1,20 @@
 import os
-import pytest
 from pathlib import Path
 from scripts.classes.s3 import AWSS3UploadBucket
 
 class TestS3Buckets:
 
     upload_filename="pytest_upload.txt"
-    region = 'us-east-1'
 
-    def initialize_bucket(self, bucket_name):
+    def initialize_bucket(self, region, bucket_name):
         bucket = AWSS3UploadBucket(
-            region=self.region, upload_bucket_name=bucket_name)
+            region=region, upload_bucket_name=bucket_name)
         return bucket
 
-    @pytest.fixture
-    def default_bucket(self):
-        default = self.initialize_bucket(None)
-        return default
-
-    def test_find_default_bucket(self, default_bucket):
+    def test_find_default_bucket(self, region, default_bucket):
         bucket = default_bucket
         assert bucket.bucket_name.startswith("cf-templates-")
-        assert bucket.bucket_name.endswith(self.region)
+        assert bucket.bucket_name.endswith(region)
 
     @staticmethod
     def create_test_file(filename):
@@ -32,8 +25,8 @@ class TestS3Buckets:
     def delete_test_file(file):
         os.remove(file)
 
-    def test_find_non_existent_bucket(self, default_bucket):
-        bucket = self.initialize_bucket("fakebucketnamewihcihadoijs")
+    def test_find_non_existent_bucket(self, region, default_bucket):
+        bucket = self.initialize_bucket(region, "fakebucketnamewihcihadoijs")
         # If bucket doesn't exist, falls back to default bucket
         assert bucket.bucket_name == default_bucket.bucket_name
 

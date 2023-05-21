@@ -4,27 +4,24 @@ from scripts.classes.mappings import Mappings
 
 class TestMappings:
 
-    __region = "us-east-1"
-    __environment = "dev"
-
     @pytest.fixture
-    def sample_all_envs_parameters_mapping(self):
-        mapping = Mappings("parameters", self.__region, self.__environment, True)
+    def sample_all_envs_parameters_mapping(self, region, environment):
+        mapping = Mappings("parameters", region, environment, True)
         return mapping
     
     @pytest.fixture
-    def sample_all_envs_templates_mapping(self):
-        mapping = Mappings("templates", self.__region, self.__environment, True)
+    def sample_all_envs_templates_mapping(self, region, environment):
+        mapping = Mappings("templates", region, environment, True)
         return mapping
     
     @pytest.fixture
-    def sample_dev_parameters_mapping(self):
-        mapping = Mappings("parameters", self.__region, self.__environment)
+    def sample_dev_parameters_mapping(self, region, environment):
+        mapping = Mappings("parameters", region, environment)
         return mapping
     
     @pytest.fixture
-    def sample_dev_templates_mapping(self):
-        mapping = Mappings("templates", self.__region, self.__environment)
+    def sample_dev_templates_mapping(self, region, environment):
+        mapping = Mappings("templates", region, environment)
         return mapping
 
     def test_all_envs_parameter_mapping_value(self, sample_all_envs_parameters_mapping):
