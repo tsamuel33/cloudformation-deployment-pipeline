@@ -19,8 +19,6 @@ class AWSS3UploadBucket:
         object representing the S3 boto3 client
     bucket_name : str
         name of the S3 bucket used to upload large CloudFormation templates
-    bucket_exists : bool
-        boolean stating if an S3 bucket exists in the account for template upload
     s3_bucket : object
         object representing the S3 bucket used to upload large CloudFormation templates
     versioning_enabled : NoneType or str
@@ -40,12 +38,10 @@ class AWSS3UploadBucket:
         bucket_list = self.s3.list_buckets()
         buckets = bucket_list['Buckets']
         parsed_response = self.parse_bucket_list(buckets, bucket_name)
-        self.bucket_name = parsed_response[0]
-        self.bucket_exists = parsed_response[1]
+        self.bucket_name = parsed_response
 
-    def parse_bucket_list(self, parsing_list, target_name=None, target_prefix='cf-templates-'):
+    def parse_bucket_list(self, parsing_list, target_name=None, cf_default_bucket_prefix='cf-templates-'):
         s3_bucket = ''
-        bucket_exists = True
         if target_name is not None:
             for b in parsing_list:
                 if b['Name'] == target_name:
@@ -56,7 +52,7 @@ class AWSS3UploadBucket:
         # Look for default CF upload bucket if one is not provided or if provided bucket doesn't exist
         if s3_bucket == '':
             for b in parsing_list:
-                if b['Name'].startswith(target_prefix) and b['Name'].endswith(self.region):
+                if b['Name'].startswith(cf_default_bucket_prefix) and b['Name'].endswith(self.region):
                     s3_bucket = b['Name']
         if s3_bucket == '':
             message1 = "Default CloudFormation bucket does not exist in account."
@@ -65,17 +61,16 @@ class AWSS3UploadBucket:
             logger.warning(message1)
             logger.warning(message2)
             logger.warning(message3)
-            bucket_exists = False
-        return (s3_bucket, bucket_exists)
+        return s3_bucket
 
     # TODO - Update this function when adding Lambda and API Gateway functionality
     # TODO - modify this to be a generic S3 bucket class and create a subclass for Lambda/API gateway
     # TODO - Allow users to specify which folder they want to upload files to
     @boto3_error_decorator(logger)
-    def upload_file(self, file_location, file_name):
+    def upload_file(self, file_location):
         with open(file_location, "rb") as template:
-            logger.info("Uploading file: {}".format(file_name))
-            response = self.s3.put_object(Body=template,Bucket=self.bucket_name,Key=file_name)
+            logger.info("Uploading file: {}".format(file_location.name))
+            response = self.s3.put_object(Body=template,Bucket=self.bucket_name,Key=file_location.name)
             logger.info("File uploaded successfully")
             if self.versioning_enabled is not None:
                 version_id = response['VersionId']
