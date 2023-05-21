@@ -9,7 +9,7 @@ def boto3_error_decorator(logger):
         @wraps(func)
         def error_wrapper(*args, **kwargs):
             try:
-                func(*args, **kwargs)
+                return func(*args, **kwargs)
             except ClientError as err:
                 logger.error(err)
                 exit()
