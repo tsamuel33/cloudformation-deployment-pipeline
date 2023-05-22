@@ -154,10 +154,11 @@ class AWSCloudFormationStack:
     def validate_template_s3(self, template_url):
         self.cf.validate_template(TemplateURL=template_url)
 
+    @boto3_error_decorator(logger)
     def create_stack(self):
         logger.info("Creating stack: {}".format(self.stack_name))
         try:
-            if self.size > 51200:
+            if self.size < 51200:
                 createTemplateResponse = self.cf.create_stack(
                     StackName=self.stack_name,
                     TemplateBody=self.load_file(self.template_path),
@@ -231,7 +232,8 @@ class AWSCloudFormationStack:
         )
         return stackupdateresponse
     
-    #TODO - Add way to handle retaining resources when stack is in DELETE_FAILED state
+    #TODO - Add way to handle retaining resources when stack is in DELETE_FAILED 
+    @boto3_error_decorator(logger)
     def delete_stack(self):
         stackdeletionresponse = self.cf.delete_stack(
             StackName=self.stack_name,
