@@ -1,8 +1,9 @@
 import json
 import sys
 import boto3
-import botocore.exceptions
+from botocore.exceptions import ClientError
 import logging
+from .decorators import boto3_error_decorator
 from pathlib import Path
 
 # Set up logger
@@ -30,6 +31,7 @@ class AWSCloudFormationStack:
         name of the CloudFormation stack
     """
 
+    deployment_dir = Path(__file__).parents[2] / "deployments"
     default_stack_prefix = "managed-app"
     success_statuses = [
         'CREATE_COMPLETE',
@@ -48,166 +50,173 @@ class AWSCloudFormationStack:
         'UPDATE_ROLLBACK_COMPLETE'
     ]
 
-    def __init__(self, template_file_name, parameter_file_name=None, stack_prefix=None, region='us-east-1', stackname=None) -> None:
-        self.template_filename = template_file_name
-        template_prefix = self.get_file_prefix(template_file_name)
-        self.parameter_filename = parameter_file_name
-        self.determine_stack_name(stackname, stack_prefix, template_prefix)
-        self.region = region
-        self.cf = boto3.client('cloudformation', region_name=self.region)
-
-    @staticmethod
-    def get_file_prefix(name) -> str:
-        if name is not None:
-            file = name.split(".")[0]
+    def __init__(self, template_file_name, parameter_mapping_object,
+                 template_mapping_object, environment, s3_upload_object,
+                 account_number, execution_role_name, all_envs=True,
+                 region='us-east-1', stack_prefix=None,
+                 template_type="cloudformation") -> None:
+        self.parameter_mapping = parameter_mapping_object
+        self.template_mapping = template_mapping_object
+        if all_envs:
+            folder = "all_envs"
         else:
-            file = ''
-        return file
+            folder = environment
+        self.template_path = self.deployment_dir / region / folder / "templates" / template_type / template_file_name
+        self.parameter_path = self.get_parameter_file_path(template_file_name, region, environment, folder, all_envs)
+        self.stack_name = self.determine_stack_name(template_file_name, stack_prefix)
+        self.parameters = self.create_parameter_list()
+        self.size = Path(self.template_path).stat().st_size
+        # # TODO - Add an indication for the existence of a parameter file. Use this as a pre-validation if cfn-lint doesn't provide that.
+        self.cf = boto3.client('cloudformation', region_name=region)
+        self.upload_bucket = s3_upload_object
+        self.role_arn = "".join(("arn:aws:iam::", account_number, ":role/", execution_role_name))
 
-    def determine_stack_name(self, name, prefix, resource):
-        if name is not None:
-            self.stack_name = name
-        elif prefix is not None:
-            self.stack_name = "-".join((prefix, resource))
+    def determine_stack_name(self, filename, prefix):
+        # Start off using default stack naming convention
+        stack_suffix = filename.split(".")[0]
+        if prefix is None:
+            stack_name = "-".join((self.default_stack_prefix, stack_suffix))
         else:
-            self.stack_name = "-".join((self.default_stack_prefix, resource))
+            stack_name = "-".join((prefix, stack_suffix))
+        # Check if custom stack name is set in mapping file
+        if self.template_mapping is not None:
+            name = self.template_mapping.get_mapping_value(filename, "templates")
+            if name is not None:
+                stack_name = name
+        return stack_name
 
-    def create_parameter_list(self, parameter_file, dynamic_param_dict):
-        parameterlist = []
-        with open(parameter_file, 'r') as myParameterFile:
-            paramData = myParameterFile.read()
-        paramObj = json.loads(paramData)
-        for x in dynamic_param_dict:
-            paramObj[x] = dynamic_param_dict[x]
-        for y in paramObj:
-            paramValue = paramObj[y]
-            entry = {
-                    'ParameterKey': y,
-                    'ParameterValue': paramValue,
-                    'UsePreviousValue': False
-                }
-            parameterlist.append(entry)
-        self.parameters = parameterlist
-        # return parameterlist
-
-    def get_stack(self):
-        response = self.cf.describe_stacks(StackName=self.stack_name)
-        status = response['Stacks'][0]['StackStatus']
-        return status
-
-    def validate_template(self, template_body):
-        try:
-            self.cf.validate_template(
-                TemplateBody=template_body
-            )
-        except botocore.exceptions.ClientError as err:
-            if err.response['Error']['Code'] == 'ValidationError':
-                error_prefix = "Error in file: {}. ".format(self.template_filename)
-                message = err.response['Error']['Message']
-                logger.error(error_prefix + message)
-                sys.exit(message)
-            else:
-                raise err
-
-    def validate_template_s3(self, template_url):
-        try:
-            self.cf.validate_template(
-                TemplateURL=template_url
-            )
-        except botocore.exceptions.ClientError as err:
-            if err.response['Error']['Code'] == 'ValidationError':
-                error_prefix = "Error in file: {}. ".format(self.template_filename)
-                message = err.response['Error']['Message']
-                logger.error(error_prefix + message)
-                sys.exit(message)
-            else:
-                raise err
+    def get_parameter_file_path(self, filename, region, environment, folder, all_envs=True):
+        # Set up default names
+        prefix = filename.split(".")[0]
+        if all_envs:
+            default_name = ".".join((prefix, environment, "json"))
+        else:
+            default_name = ".".join((prefix, "json"))
+        # Attempt to get name from mapping file. Use default if name is not found
+        name = self.parameter_mapping.get_mapping_value(filename, "parameters")
+        if name is None:
+            name = default_name
+        path = self.deployment_dir / region / folder / "parameters" / name
+        return path
 
     # TODO - Ensure pipeline takes yaml and json
-    # @staticmethod
-    def load_template(self, file):
-        with open(file, 'r') as myFile:
-            data = myFile.read()
-        self.template = data
-        # return data
+    @staticmethod
+    def load_file(file_path):
+        try:
+            with open(file_path, 'r') as myFile:
+                data = myFile.read()
+            return data
+        except FileNotFoundError:
+            filename = file_path.name
+            # Give warning message for missing parameter file. This will not
+            # apply to template files as the template must exist to initialize
+            # the stack class
+            message = "Parameter file ({}) not found. ".format(filename) + \
+                "Stack actions will fail if template does not have " + \
+                "default values defined for all parameters."
+            logger.warning(message)
 
-    def get_template_size(self, file_path):
-        posix = Path(file_path)
-        self.size = posix.stat().st_size
-        # try:
-        #     templateFilePosix = Path(templateFilePath)
-        #     size = templateFilePosix.stat().st_size
-        #     if size > 51200:
-        #         logger.info('%s file size is larger than quota. Uploading to %s' % (TEMPLATE_FILE_NAME, uploadBucket))
-        #         upload_template(s3, cfTemplateYaml, uploadBucket, TEMPLATE_FILE_NAME)
-        #         s3ObjectLocation = "".join(('https://', uploadBucket, '.s3.amazonaws.com/', TEMPLATE_FILE_NAME))
-        #         createTemplateResponse = create_stack_s3(
-        #             cloudformation, STACK_NAME, parameterList, ACCOUNT_NUMBER,
-        #             s3ObjectLocation, STACK_EXECUTION_ROLE_NAME)
-        #     else:
-        #         createTemplateResponse = create_stack(
-        #             cloudformation, STACK_NAME, parameterList, parameterList,
-        #             cfTemplateYaml, STACK_EXECUTION_ROLE_NAME)
-        #     logger.info('Creation of stack: %s in progress...' % createTemplateResponse['StackId'])
-        # except botocore.exceptions.ClientError as error:
-        #     logger.error(error)
-        #     active = False
-        #     raise error
+    def create_parameter_list(self):
+        parameters = self.load_file(self.parameter_path)
+        if parameters is None:
+            parameterlist = None
+        if parameters is not None:
+            parameterlist = []
+            paramObj = json.loads(parameters)
+            for y in paramObj:
+                paramValue = paramObj[y]
+                entry = {
+                        'ParameterKey': y,
+                        'ParameterValue': paramValue,
+                        'UsePreviousValue': False
+                    }
+                parameterlist.append(entry)
+        return parameterlist
 
-    def create_stack(self, parameters,
-            account_id, template_string, execution_role_name):
-        stackCreateResponse = self.cf.create_stack(
-            StackName=self.stack_name,
-            TemplateBody=template_string,
-            Parameters=parameters,
-            # TimeoutInMinutes=123,
-            Capabilities=[
-                'CAPABILITY_IAM',
-                'CAPABILITY_NAMED_IAM',
-                'CAPABILITY_AUTO_EXPAND'
-            ],
-            RoleARN="".join(('arn:aws:iam::', account_id, ':role/app/', execution_role_name)),
-            # EnableTerminationProtection=True|False,
-            OnFailure='DELETE'
-        )
-        return stackCreateResponse
+    #TODO - Also have it get stack details for failure
+    @boto3_error_decorator(logger)
+    def get_stack(self):
+        response = self.cf.describe_stacks(StackName=self.stack_name)['Stacks'][0]
+        status = response['StackStatus']
+        try:
+            reason = response['StackStatusReason']
+        except KeyError:
+            reason = "N/A"
+        finally:
+            return (status, reason)
 
-    def create_stack_s3(self, parameters,
-            account_id,template_url, execution_role_name):
-        stackcreateresponse = self.cf.create_stack(
-            StackName=self.stack_name,
-            TemplateURL=template_url,
-            Parameters=parameters,
-            # TimeoutInMinutes=123,
-            Capabilities=[
-                'CAPABILITY_IAM',
-                'CAPABILITY_NAMED_IAM',
-                'CAPABILITY_AUTO_EXPAND'
-            ],
-            RoleARN="".join(('arn:aws:iam::', account_id, ':role/app/', execution_role_name)),
-            # EnableTerminationProtection=True|False,
-            OnFailure='DELETE'
-        )
-        return stackcreateresponse
+    @boto3_error_decorator(logger)
+    def validate_template(self):
+        template_body = self.load_file(self.template_path)
+        self.cf.validate_template(TemplateBody=template_body)
 
-    def update_stack(self, parameters,
-            account_id, template_string, execution_role_name):
+    @boto3_error_decorator(logger)
+    def validate_template_s3(self, template_url):
+        self.cf.validate_template(TemplateURL=template_url)
+
+    def create_stack(self):
+        logger.info("Creating stack: {}".format(self.stack_name))
+        try:
+            if self.size > 51200:
+                createTemplateResponse = self.cf.create_stack(
+                    StackName=self.stack_name,
+                    TemplateBody=self.load_file(self.template_path),
+                    Parameters=self.parameters,
+                    # TimeoutInMinutes=123,
+                    Capabilities=[
+                        'CAPABILITY_IAM',
+                        'CAPABILITY_NAMED_IAM',
+                        'CAPABILITY_AUTO_EXPAND'
+                    ],
+                    RoleARN=self.role_arn,
+                    # EnableTerminationProtection=True|False,
+                    OnFailure='DELETE'
+                )
+            else:
+                logger.info('{} file size is larger than quota. Uploading to {}'.format(self.template_path.name, self.upload_bucket.bucket_name))
+                self.upload_bucket.upload_file(self.template_path)
+                object_url = "".join(("https://", self.upload_bucket.bucket_name, ".s3.amazonaws.com/", self.template_path.name))
+                createTemplateResponse = self.cf.create_stack(
+                    StackName=self.stack_name,
+                    TemplateURL=object_url,
+                    Parameters=self.parameters,
+                    # TimeoutInMinutes=123,
+                    Capabilities=[
+                        'CAPABILITY_IAM',
+                        'CAPABILITY_NAMED_IAM',
+                        'CAPABILITY_AUTO_EXPAND'
+                    ],
+                    RoleARN=self.role_arn,
+                    # EnableTerminationProtection=True|False,
+                    OnFailure='DELETE'
+                )
+            logger.info('Creation of stack: {} in progress...'.format(createTemplateResponse['StackId']))
+        except ClientError as err:
+            if err.response['Error']['Code'] == "AlreadyExistsException":
+                logger.info("Stack already exists.")
+            else:
+                raise err
+
+    #TODO - Add change set methods (create, describe, delete)
+
+    @boto3_error_decorator(logger)
+    def update_stack_local(self):
         stackupdateresponse = self.cf.update_stack(
             StackName=self.stack_name,
-            TemplateBody=template_string,
-            Parameters=parameters,
+            TemplateBody=self.load_file(self.template_path),
+            Parameters=self.parameters,
             Capabilities=[
                 'CAPABILITY_IAM',
                 'CAPABILITY_NAMED_IAM',
                 'CAPABILITY_AUTO_EXPAND'
             ],
-            RoleARN="".join(('arn:aws:iam::', account_id, ':role/app/', execution_role_name)),
+            RoleARN=self.role_arn,
             DisableRollback=False
         )
         return stackupdateresponse
 
-    def update_stack_s3(self, parameters,
-            account_id,template_url, execution_role_name):
+    @boto3_error_decorator(logger)
+    def update_stack_s3(self, parameters, template_url):
         stackupdateresponse = self.cf.update_stack(
             StackName=self.stack_name,
             TemplateURL=template_url,
@@ -217,7 +226,18 @@ class AWSCloudFormationStack:
                 'CAPABILITY_NAMED_IAM',
                 'CAPABILITY_AUTO_EXPAND'
             ],
-            RoleARN="".join(('arn:aws:iam::', account_id, ':role/app/', execution_role_name)),
+            RoleARN=self.role_arn,
             DisableRollback=False
         )
         return stackupdateresponse
+    
+    #TODO - Add way to handle retaining resources when stack is in DELETE_FAILED state
+    def delete_stack(self):
+        stackdeletionresponse = self.cf.delete_stack(
+            StackName=self.stack_name,
+            # RetainResources=[
+            #     'string',
+            # ],
+            RoleARN=self.role_arn
+        )
+        return stackdeletionresponse
