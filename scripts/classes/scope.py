@@ -64,7 +64,8 @@ class PipelineScope:
         self.create_list = []
         self.update_list = []
         self.delete_list = []
-        self.environment = self.get_environment(branch)
+        self.environment = self.get_branch_environment(branch)
+        self.regions = self.get_regions()
         self.deploy_tag = "-".join((self.tag_prefix,branch))
         self.last_deploy = self.get_last_deployment_commit(self.deploy_tag)
         self._diff = self.get_diff()
@@ -72,14 +73,11 @@ class PipelineScope:
             self.get_created_files()
             self.get_modified_files()
             self.get_deleted_files()
-        # self.regions = self.get_regions()
-        # self.environments = self.get_environments()
         else:
             self.get_all_templates(self.environment)
-        #get all if on minor branch or if no diff/initial deployment
         #TODO - also add logic to only handle templates for the proper environment
 
-    def get_environment(self, branch):
+    def get_branch_environment(self, branch):
         config = Configuration(branch)
         if config.branch_type == "major":
             environment = config.environment
@@ -105,14 +103,11 @@ class PipelineScope:
 
     def get_environments(self):
         environments = []
-        self.all_envs = False
         for region in self.regions:
             region_dir = self.deployment_dir / region
             for env in region_dir.iterdir():
                 if env.is_dir():
-                    if env.name == "all_envs":
-                        self.all_envs = True
-                    elif env.name not in environments:
+                    if env.name not in environments:
                         environments.append(env.name)
         environments.sort()
         return environments
@@ -237,19 +232,22 @@ class PipelineScope:
 
     #change_type, list_to_append, path_type, file_type (calculated)
     # TODO - create separate functions for each check
-    def set_scope(self, change_type):
-        diff_files = self._diff.iter_change_type(change_type)
-        for file in diff_files:
-            path = self.get_file_path(change_type, file)
-            parts = path.parts
-            if "deployments" in parts and path.suffix in self.valid_template_suffixes:
-                type = self.get_file_type(path)
-                if type == "parameters" and change_type != "D":
-                    template_path = self.get_template_for_param_mapping(path)
-                elif type is not None:
-                    template_path = path
-                #TODO - add logic to handle case where template_path is not set
-                self.append_file(change_type, template_path)
+    def set_scope(self, change_type, environment):
+        if environment is None or self._diff is None:
+            self.get_all_templates()
+        else:
+            diff_files = self._diff.iter_change_type(change_type)
+            for file in diff_files:
+                path = self.get_file_path(change_type, file)
+                parts = path.parts
+                if "deployments" in parts and path.suffix in self.valid_template_suffixes:
+                    type = self.get_file_type(path)
+                    if type == "parameters" and change_type != "D":
+                        template_path = self.get_template_for_param_mapping(path)
+                    elif type is not None:
+                        template_path = path
+                    #TODO - add logic to handle case where template_path is not set
+                    self.append_file(change_type, template_path)
 
     def get_templates(self, source_dir, template_type):
         #TODO - moved this logger message from init. See if you need it
@@ -266,15 +264,16 @@ class PipelineScope:
     def get_all_templates(self):
         logger.info("Gathering all template files...")
         template_file_paths = []
+        environments = self.get_environments()
         for region in self.regions:
             region_dir = self.deployment_dir / region
-            if self.all_envs:
-                all_env_dir = region_dir / "all_envs"
-                all_env_cf = self.get_templates(all_env_dir, "cloudformation")
-                all_env_sam = self.get_templates(all_env_dir, "sam")
-                template_file_paths.extend(all_env_cf)
-                template_file_paths.extend(all_env_sam)
-            for env in self.environments:
+            # if self.all_envs:
+            #     all_env_dir = region_dir / "all_envs"
+            #     all_env_cf = self.get_templates(all_env_dir, "cloudformation")
+            #     all_env_sam = self.get_templates(all_env_dir, "sam")
+            #     template_file_paths.extend(all_env_cf)
+            #     template_file_paths.extend(all_env_sam)
+            for env in environments:
                 env_dir = region_dir / env
                 env_cf = self.get_templates(env_dir, "cloudformation")
                 env_sam = self.get_templates(env_dir, "sam")
