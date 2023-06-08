@@ -1,6 +1,7 @@
 import logging
 import subprocess
 from .mappings import Mappings
+# from .configuration import Configuration
 from pathlib import Path
 from git import Repo
 from git.exc import GitCommandError
@@ -61,6 +62,8 @@ class PipelineScope:
 
     # TODO - Add target environment as variable. Pull from configuration or use config class
     def __init__(self, target_branch="main") -> None:
+        # config = Configuration(target_branch)
+        # self.environment = config.environment
         self.deploy_tag = "-".join((self.tag_prefix,target_branch))
         self.regions = self.get_regions()
         self.environments = self.get_environments()
@@ -223,7 +226,7 @@ class PipelineScope:
 
     #change_type, list_to_append, path_type, file_type (calculated)
     # TODO - create separate functions for each check
-    def get_templates(self, change_type):
+    def set_scope(self, change_type):
         diff_files = self._diff.iter_change_type(change_type)
         for file in diff_files:
             path = self.get_file_path(change_type, file)
@@ -236,14 +239,41 @@ class PipelineScope:
                     template_path = path
                 self.append_file(change_type, template_path)
 
+    def get_templates(self, source_dir, template_type):
+        templates = []
+        template_dir = source_dir / "templates" / template_type
+        if template_dir.is_dir():
+            for template in template_dir.iterdir():
+                if template.is_file() and template.suffix in self.valid_template_suffixes:
+                    templates.append(template)
+        return templates
+
+    def get_all_templates(self):
+        template_file_paths = []
+        for region in self.regions:
+            region_dir = self.deployment_dir / region
+            if self.all_envs:
+                all_env_dir = region_dir / "all_envs"
+                all_env_cf = self.get_templates(all_env_dir, "cloudformation")
+                all_env_sam = self.get_templates(all_env_dir, "sam")
+                template_file_paths.extend(all_env_cf)
+                template_file_paths.extend(all_env_sam)
+            for env in self.environments:
+                env_dir = region_dir / env
+                env_cf = self.get_templates(env_dir, "cloudformation")
+                env_sam = self.get_templates(env_dir, "sam")
+                template_file_paths.extend(env_cf)
+                template_file_paths.extend(env_sam)
+        return template_file_paths
+
     def get_created_files(self):
-        self.get_templates("A")
+        self.set_scope("A")
 
     def get_modified_files(self):
-        self.get_templates("M")
+        self.set_scope("M")
 
     def get_deleted_files(self):
-        self.get_templates("D")
+        self.set_scope("D")
 
     def lint_templates(self):
         for template in self.create_list:
