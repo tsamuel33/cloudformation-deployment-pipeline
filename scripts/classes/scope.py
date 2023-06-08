@@ -156,15 +156,8 @@ class PipelineScope:
     def get_file_type(self, file_path):
         file_parts = file_path.parts
         file_type = None
-        if len(file_parts) == 5 and file_parts[3] == "parameters":
-            file_type = "parameters"
-        elif len(file_parts) == 6 and file_parts[3] == "templates":
-            file_type = file_parts[4]
-            if file_type not in ["cloudformation", "sam"]:
-                message = "Template file {} has ".format(str(file_path)) + \
-                    "invalid subfolder name. Name must be 'sam' or " + \
-                    "'cloudformation'. File will be ignored."
-                logger.warning(message)
+        if len(file_parts) == 5 and file_parts[3] in ["parameters", "templates"]:
+            file_type = file_parts[3]
         if file_type is None:
             message = "Template file {} ".format(str(file_path)) + \
                 "has invalid file structure and will be ignored."
@@ -214,6 +207,7 @@ class PipelineScope:
     def get_template_for_param_mapping(self, param_file_path):
         template_path = None
         # TODO - add logic to determine between sam and cloudformation. Remove hardcoded "cloudformation"
+            #Achieve this by looking for the "Transform" section. That's mandatory for SAM templates
         template_dir = param_file_path.parents[1] / "templates" / "cloudformation"
         parts = param_file_path.parts
         region = parts[1]
@@ -231,9 +225,7 @@ class PipelineScope:
                     template_path = template_dir / name
         return template_path
 
-    #change_type, list_to_append, path_type, file_type (calculated)
-    #checks - region, all_envs or target_env, (cloudformation or sam type)
-    # TODO - create separate functions for each check
+    # TODO - create separate functions for each check. still need: region, all_envs or target_env
     def set_scope(self, change_type, environment):
         if environment is None or self._diff is None:
             self.get_all_templates()
@@ -247,7 +239,7 @@ class PipelineScope:
                     if type is not None:
                         if type == "parameters" and change_type != "D":
                             template_path = self.get_template_for_param_mapping(path)
-                        elif type in ["cloudformation", "sam"]:
+                        else:
                             template_path = path
                         self.append_file(change_type, template_path)
 
