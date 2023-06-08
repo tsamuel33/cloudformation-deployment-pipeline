@@ -74,7 +74,8 @@ class PipelineScope:
             self.get_modified_files()
             self.get_deleted_files()
         else:
-            self.get_all_templates(self.environment)
+            # self.get_all_templates()
+            self.set_scope("M", self.environment)
         #TODO - also add logic to only handle templates for the proper environment
 
     def get_branch_environment(self, branch):
@@ -267,19 +268,14 @@ class PipelineScope:
         environments = self.get_environments()
         for region in self.regions:
             region_dir = self.deployment_dir / region
-            # if self.all_envs:
-            #     all_env_dir = region_dir / "all_envs"
-            #     all_env_cf = self.get_templates(all_env_dir, "cloudformation")
-            #     all_env_sam = self.get_templates(all_env_dir, "sam")
-            #     template_file_paths.extend(all_env_cf)
-            #     template_file_paths.extend(all_env_sam)
             for env in environments:
                 env_dir = region_dir / env
                 env_cf = self.get_templates(env_dir, "cloudformation")
                 env_sam = self.get_templates(env_dir, "sam")
                 template_file_paths.extend(env_cf)
                 template_file_paths.extend(env_sam)
-        return template_file_paths
+        for template in template_file_paths:
+            self.append_file("M", template)
 
     def get_created_files(self):
         self.set_scope("A")
