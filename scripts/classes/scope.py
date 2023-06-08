@@ -232,6 +232,7 @@ class PipelineScope:
         return template_path
 
     #change_type, list_to_append, path_type, file_type (calculated)
+    #checks - region, all_envs or target_env, (cloudformation or sam type)
     # TODO - create separate functions for each check
     def set_scope(self, change_type, environment):
         if environment is None or self._diff is None:
@@ -243,12 +244,12 @@ class PipelineScope:
                 parts = path.parts
                 if "deployments" in parts and path.suffix in self.valid_template_suffixes:
                     type = self.get_file_type(path)
-                    if type == "parameters" and change_type != "D":
-                        template_path = self.get_template_for_param_mapping(path)
-                    elif type is not None:
-                        template_path = path
-                    #TODO - add logic to handle case where template_path is not set
-                    self.append_file(change_type, template_path)
+                    if type is not None:
+                        if type == "parameters" and change_type != "D":
+                            template_path = self.get_template_for_param_mapping(path)
+                        elif type in ["cloudformation", "sam"]:
+                            template_path = path
+                        self.append_file(change_type, template_path)
 
     def get_templates(self, source_dir, template_type):
         #TODO - moved this logger message from init. See if you need it
@@ -293,3 +294,7 @@ class PipelineScope:
             self.lint_commands.append(template.as_posix())
         code = subprocess.run(self.lint_commands).returncode
         return code
+
+    #TODO - parse by environment if not handled prior to calling this method
+    def deploy_templates(self, environment):
+        pass
