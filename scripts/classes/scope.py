@@ -59,12 +59,12 @@ class PipelineScope:
         "-t"
     ]
 
+    # TODO - Add target environment as variable. Pull from configuration or use config class
     def __init__(self, target_branch="main") -> None:
-        deployment_tag = "-".join((self.tag_prefix,target_branch))
-        temp_tag = "-".join((deployment_tag,"temp"))
+        self.deploy_tag = "-".join((self.tag_prefix,target_branch))
         self.regions = self.get_regions()
         self.environments = self.get_environments()
-        self.last_deploy = self.get_last_deployment_commit(deployment_tag)
+        self.last_deploy = self.get_last_deployment_commit(self.deploy_tag)
         self._diff = self.get_diff()
         self.create_list = []
         self.update_list = []
@@ -188,6 +188,7 @@ class PipelineScope:
             logger.warning(message)
             return None
 
+    #TODO - Ensure appended files are located in valid regions and environments for this branch
     def append_file(self, change_type, template_file_path):
         if template_file_path is not None:
             data = self.load_file(template_file_path)
