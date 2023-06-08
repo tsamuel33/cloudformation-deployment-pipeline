@@ -1,0 +1,122 @@
+---
+AWSTemplateFormatVersion: 2010-09-09
+Description: Create a local S3 bucket for Server Access Logs.
+
+Mappings:
+  ELBLoggingAccounts:
+    us-east-1:
+      ID: "127311923021"
+    us-east-2:
+      ID: "033677994240"
+    us-west-1:
+      ID: "027434742980"
+    us-west-2:
+      ID: "797873946194"
+
+Resources:
+  ServerAccessLoggingBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub default-s3-server-access-logs-${AWS::AccountId}-${AWS::Region}-test
+      VersioningConfiguration:
+        Status: Suspended
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+  ServerAccessLoggingBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    DependsOn: ServerAccessLoggingBucket
+    Properties:
+      Bucket: !Ref ServerAccessLoggingBucket
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Sid: AllowPermissionsCheckBySecurityService
+            Effect: Allow
+            Principal:
+              Service:
+                - securityhub.amazonaws.com
+                - config.amazonaws.com
+                - athena.amazonaws.com
+                - guardduty.amazonaws.com
+                - lambda.amazonaws.com
+            Action: s3:GetBucketAcl
+            Resource:
+              - !Sub 'arn:aws:s3:::${ServerAccessLoggingBucket}'
+          - Sid: AllowAccessByAwsServices
+            Effect: Allow
+            Principal:
+              Service:
+                - securityhub.amazonaws.com
+                - config.amazonaws.com
+                - athena.amazonaws.com
+                - guardduty.amazonaws.com
+                - lambda.amazonaws.com
+            Action:
+              - "s3:GetObject"
+            Resource:
+              - !Sub 'arn:aws:s3:::${ServerAccessLoggingBucket}/*'
+              - !Sub 'arn:aws:s3:::${ServerAccessLoggingBucket}/*/*'
+          - Sid: AllowBucketDeliveryByLambdaService
+            Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action: s3:PutObject
+            Resource:
+              - !Sub 'arn:aws:s3:::${ServerAccessLoggingBucket}/*'
+              - !Sub 'arn:aws:s3:::${ServerAccessLoggingBucket}/*/*'
+          - Sid: S3ServerAccessLogsPolicy
+            Effect: Allow
+            Principal:
+              Service:
+                - logging.s3.amazonaws.com
+            Action: s3:PutObject
+            Resource:
+              - !Sub 'arn:aws:s3:::${ServerAccessLoggingBucket}/*'
+              - !Sub 'arn:aws:s3:::${ServerAccessLoggingBucket}/*/*'
+            Condition:
+              StringEquals:
+                "aws:SourceAccount": !Ref "AWS::AccountId"
+          - Sid: AllowSSLRequestsOnly
+            Effect: Deny
+            Principal: '*'
+            Action: 's3:*'
+            Resource:
+              - !Sub 'arn:aws:s3:::${ServerAccessLoggingBucket}'
+              - !Sub 'arn:aws:s3:::${ServerAccessLoggingBucket}/*'
+            Condition:
+              Bool:
+                "aws:SecureTransport": "false"
+          - Sid: AllowLoadBalancerLogs
+            Effect: Allow
+            Principal:
+              AWS: {"Fn::Sub": ["arn:aws:iam::${ELBAccount}:root", {ELBAccount: !FindInMap [ELBLoggingAccounts, !Ref AWS::Region, ID]}]}
+            Action: s3:PutObject
+            Resource: !Sub "arn:aws:s3:::${ServerAccessLoggingBucket}/*/AWSLogs/${AWS::AccountId}/*"
+          # - Fn::Sub:
+          #   - |
+          #     {
+          #       "Sid": "AllowLoadBalancerLogs",
+          #       "Effect": "Allow",
+          #       "Principal": {
+          #         "AWS": "arn:aws:iam::${ELBAccount}:root"
+          #       },
+          #       "Action": "s3:PutObject",
+          #       "Resource": !Sub "arn:aws:s3:::${ServerAccessLoggingBucket}/*/AWSLogs/${AWS::AccountId}/*"
+          #     }
+          #   - ELBAccount: !FindInMap [ELBLoggingAccounts, !Ref AWS::Region, ID]
+
+# Outputs:
+#   ServerAccessLoggingBucketName:
+#     Description: Default Local S3 Server Access Logging Bucket Name
+#     Value: !Ref ServerAccessLoggingBucket
+#     Export:
+#       Name: S3ServerAccessLoggingBucket
