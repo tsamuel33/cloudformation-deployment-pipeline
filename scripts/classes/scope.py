@@ -1,7 +1,7 @@
 import logging
 import subprocess
 from .mappings import Mappings
-# from .configuration import Configuration
+from .configuration import Configuration, ConfigurationError
 from pathlib import Path
 from git import Repo
 from git.exc import GitCommandError
@@ -60,22 +60,32 @@ class PipelineScope:
         "-t"
     ]
 
-    # TODO - Add target environment as variable. Pull from configuration or use config class
-    def __init__(self, target_branch="main") -> None:
-        # config = Configuration(target_branch)
-        # self.environment = config.environment
-        self.deploy_tag = "-".join((self.tag_prefix,target_branch))
-        self.regions = self.get_regions()
-        self.environments = self.get_environments()
-        self.last_deploy = self.get_last_deployment_commit(self.deploy_tag)
-        self._diff = self.get_diff()
+    def __init__(self, branch="fake") -> None:
         self.create_list = []
         self.update_list = []
         self.delete_list = []
+        self.environment = self.get_environment(branch)
+        self.deploy_tag = "-".join((self.tag_prefix,branch))
+        self.last_deploy = self.get_last_deployment_commit(self.deploy_tag)
+        self._diff = self.get_diff()
         if self._diff is not None:
             self.get_created_files()
             self.get_modified_files()
             self.get_deleted_files()
+        # self.regions = self.get_regions()
+        # self.environments = self.get_environments()
+        else:
+            self.get_all_templates(self.environment)
+        #get all if on minor branch or if no diff/initial deployment
+        #TODO - also add logic to only handle templates for the proper environment
+
+    def get_environment(self, branch):
+        config = Configuration(branch)
+        if config.branch_type == "major":
+            environment = config.environment
+        elif config.branch_type == "minor":
+            environment = None
+        return environment
 
     def get_regions(self):
         regions = []
@@ -204,6 +214,7 @@ class PipelineScope:
                     self.delete_list.append(template_file_path)
 
     # Only need this for modifications or renames?
+    #TODO - ensure it pulls default name if mapping or mapping file don't exist
     def get_template_for_param_mapping(self, param_file_path):
         template_path = None
         # TODO - add logic to determine between sam and cloudformation. Remove hardcoded "cloudformation"
@@ -237,9 +248,13 @@ class PipelineScope:
                     template_path = self.get_template_for_param_mapping(path)
                 elif type is not None:
                     template_path = path
+                #TODO - add logic to handle case where template_path is not set
                 self.append_file(change_type, template_path)
 
     def get_templates(self, source_dir, template_type):
+        #TODO - moved this logger message from init. See if you need it
+        # message = "Gathering template files for " + \
+        #         "{} environment".format(environment)
         templates = []
         template_dir = source_dir / "templates" / template_type
         if template_dir.is_dir():
@@ -249,6 +264,7 @@ class PipelineScope:
         return templates
 
     def get_all_templates(self):
+        logger.info("Gathering all template files...")
         template_file_paths = []
         for region in self.regions:
             region_dir = self.deployment_dir / region
