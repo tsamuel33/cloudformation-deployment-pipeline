@@ -1,6 +1,5 @@
 import configparser
 from pathlib import Path
-# from .errors import ConfigurationError
 import logging
 
 # Set up logger
