@@ -14,7 +14,9 @@ logger = logging.getLogger(Path(__file__).name)
 class PipelineScope:
 
     root_dir = Path(__file__).parents[2]
-    repo = Repo(root_dir)
+    __repo = Repo(root_dir)
+    __remote = __repo.remote()
+    __head_commit = __repo.head.commit
     deployment_dir = root_dir / "deployments"
     tag_prefix = "cf-deployment"
     valid_template_suffixes = [
@@ -67,8 +69,8 @@ class PipelineScope:
         self.environment = Configuration(branch).environment
         self.regions = self.get_regions()
         self.deploy_tag = "-".join((self.tag_prefix,branch))
-        self.last_deploy = self.get_last_deployment_commit(self.deploy_tag)
-        self._diff = self.get_diff()
+        self.__last_deploy = self.get_last_deployment_commit(self.deploy_tag)
+        self.__diff = self.get_diff()
         self.set_scope()
 
 
@@ -101,7 +103,7 @@ class PipelineScope:
 
     def get_last_deployment_commit(self, target_tag):
         try:
-            commit = self.repo.tag(target_tag).commit
+            commit = self.__repo.tag(target_tag).commit
         except ValueError as err:
             if err.args[0] == "Reference at " + \
                 "'refs/tags/{}' does not exist".format(target_tag):
@@ -114,12 +116,13 @@ class PipelineScope:
             return commit
 
     def create_new_tag(self, target_tag, commit):
+        logger.info("Tagging commit...")
         try:
-            new_tag = self.repo.create_tag(target_tag, commit)
+            new_tag = self.__repo.create_tag(target_tag, commit)
             return new_tag
         except GitCommandError as err:
             if "tag '{}' already exists".format(target_tag) in err.stderr:
-                existing_tag = self.repo.tag(target_tag)
+                existing_tag = self.__repo.tag(target_tag)
                 if existing_tag.commit == commit:
                     return existing_tag
                 else:
@@ -128,21 +131,40 @@ class PipelineScope:
                     # exit()
             else:
                 raise err
-            
+
     def push_tag_to_remote(self, target_tag):
-        tag = self.repo.tag(target_tag)
-        remote = self.repo.remote()
-        remote.push(tag)
+        logger.info("Pushing tag to remote repository...")
+        tag = self.__repo.tag(target_tag)
+        self.__remote.push(tag)
 
     def delete_tag(self, target_tag):
-        self.repo.delete_tag(target_tag)
+        logger.info("Deleting tag...")
+        try:
+            self.__repo.delete_tag(target_tag)
+        except GitCommandError as err:
+            if "tag '{}' not found".format(target_tag) in err.stderr:
+                logger.info("Tag ({}) already deleted.".format(target_tag))
+
+    def delete_tag_from_remote(self, target_tag):
+        try:
+            self.delete_tag(target_tag)
+            logger.info("Removing tag from remote repository...")
+            self.__remote.push(refspec=(':{}'.format(target_tag)))
+        except GitCommandError as err:
+            if "'{}': remote ref does not exist".format(target_tag) in err.stderr:
+                logger.info("Tag ({}) already deleted from remote.".format(target_tag))
+
+    def update_deployment_checkpoint(self):
+        if self.__last_deploy is not None:
+            self.delete_tag_from_remote(self.deploy_tag)
+        tag = self.create_new_tag(self.deploy_tag, self.__head_commit)
+        self.push_tag_to_remote(tag)
 
     def get_diff(self):
-        head_commit = self.repo.head.commit
-        if self.last_deploy is None:
+        if self.__last_deploy is None:
             diff = None
         else:
-            diff = head_commit.diff(self.last_deploy)
+            diff = self.__head_commit.diff(self.__last_deploy)
         return diff
 
     def get_file_type(self, file_path):
@@ -242,12 +264,12 @@ class PipelineScope:
     def set_scope(self):
         if self.environment is None:
             self.get_all_templates(True)
-        elif self._diff is None:
+        elif self.__diff is None:
             self.get_all_templates()
         else:
             change_types = ["A", "M", "D"]
             for change_type in change_types:
-                diff_files = self._diff.iter_change_type(change_type)
+                diff_files = self.__diff.iter_change_type(change_type)
                 for file in diff_files:
                     path = self.get_file_path(change_type, file)
                     type = self.get_file_type(path)
