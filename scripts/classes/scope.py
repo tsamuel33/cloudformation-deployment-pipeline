@@ -60,31 +60,17 @@ class PipelineScope:
         "-r"
     ]
 
-    def __init__(self, branch="fake") -> None:
+    def __init__(self, branch) -> None:
         self.create_list = []
         self.update_list = []
         self.delete_list = []
-        self.environment = self.get_branch_environment(branch)
+        self.environment = Configuration(branch).environment
         self.regions = self.get_regions()
         self.deploy_tag = "-".join((self.tag_prefix,branch))
         self.last_deploy = self.get_last_deployment_commit(self.deploy_tag)
         self._diff = self.get_diff()
-        if self._diff is not None:
-            self.get_created_files()
-            self.get_modified_files()
-            self.get_deleted_files()
-        else:
-            # self.get_all_templates()
-            self.set_scope("M", self.environment)
-        #TODO - also add logic to only handle templates for the proper environment
+        self.set_scope()
 
-    def get_branch_environment(self, branch):
-        config = Configuration(branch)
-        if config.branch_type == "major":
-            environment = config.environment
-        elif config.branch_type == "minor":
-            environment = None
-        return environment
 
     def get_regions(self):
         regions = []
@@ -102,7 +88,7 @@ class PipelineScope:
         regions.sort()
         return regions
 
-    def get_environments(self):
+    def get_all_environments(self):
         environments = []
         for region in self.regions:
             region_dir = self.deployment_dir / region
@@ -120,7 +106,7 @@ class PipelineScope:
             if err.args[0] == "Reference at " + \
                 "'refs/tags/{}' does not exist".format(target_tag):
                 message = "Tag '{}' does not exist. ".format(target_tag) + \
-                    "Pipeline will attempt to create all relevant " + \
+                    "Pipeline will attempt to deploy all relevant " + \
                     "CloudFormation stacks."
                 logger.warning(message)
             commit = None
@@ -137,6 +123,7 @@ class PipelineScope:
                 if existing_tag.commit == commit:
                     return existing_tag
                 else:
+                    #TODO - decide if this should be critical error or a warning
                     logger.error("Tag already exists on a different commit.")
                     # exit()
             else:
@@ -155,13 +142,17 @@ class PipelineScope:
 
     def get_file_type(self, file_path):
         file_parts = file_path.parts
-        file_type = None
-        if len(file_parts) == 5 and file_parts[3] in ["parameters", "templates"]:
-            file_type = file_parts[3]
-        if file_type is None:
-            message = "Template file {} ".format(str(file_path)) + \
-                "has invalid file structure and will be ignored."
-            logger.warning(message)
+        if "deployments" in file_parts and file_path.suffix in self.valid_template_suffixes:
+            if file_parts[-2] in ["parameters", "templates", "mappings"]:
+                file_type = file_parts[-2]
+            else:
+                file_type = None
+            if file_type is None:
+                message = "Template file {} ".format(str(file_path)) + \
+                    "has invalid file structure and will be ignored."
+                logger.warning(message)
+        else:
+            file_type = None
         return file_type
 
     @staticmethod
@@ -190,17 +181,36 @@ class PipelineScope:
             logger.warning(message)
             return None
 
-    #TODO - Ensure appended files are located in valid regions and environments for this branch
+    #TODO - check logic of this method. seems to malfunction when providing an environment to set_scope
+    #Figure out if this should be called in append_file or set_scope
+    def get_target_envs(self, all_envs=False):
+        if all_envs or self.environment is None:
+            target_envs = self.get_all_environments()
+        else:
+            target_envs = ["all_envs", self.environment]
+        return target_envs
+
+        # if all_temps:
+        #     return True
+        # else:
+        #     parts = template_path.parts
+        # #     region = parts[-4]
+        #     env = parts[-3]
+        #     if region in self.regions and env in target_envs:
+        #         return True
+        #     else:
+        #         return False
+
+    #TODO - move validation to earlier step
     def append_file(self, change_type, template_file_path):
-        if template_file_path is not None:
-            data = self.load_file(template_file_path)
-            if data is not None:
-                if change_type == "A" and template_file_path not in self.create_list:
-                    self.create_list.append(template_file_path)
-                elif change_type == "M" and template_file_path not in self.update_list:
-                    self.update_list.append(template_file_path)
-                elif change_type == "D" and template_file_path not in self.delete_list:
-                    self.delete_list.append(template_file_path)
+        data = self.load_file(template_file_path)
+        if data is not None:
+            if change_type == "A" and template_file_path not in self.create_list:
+                self.create_list.append(template_file_path)
+            elif change_type == "M" and template_file_path not in self.update_list:
+                self.update_list.append(template_file_path)
+            elif change_type == "D" and template_file_path not in self.delete_list:
+                self.delete_list.append(template_file_path)
 
     # Only need this for modifications or renames?
     #TODO - ensure it pulls default name if mapping or mapping file don't exist
@@ -208,7 +218,7 @@ class PipelineScope:
         template_path = None
         # TODO - add logic to determine between sam and cloudformation. Remove hardcoded "cloudformation"
             #Achieve this by looking for the "Transform" section. That's mandatory for SAM templates
-        template_dir = param_file_path.parents[1] / "templates" / "cloudformation"
+        template_dir = param_file_path.parents[1] / "templates"
         parts = param_file_path.parts
         region = parts[1]
         if parts[2] == "all_envs":
@@ -225,57 +235,53 @@ class PipelineScope:
                     template_path = template_dir / name
         return template_path
 
-    # TODO - create separate functions for each check. still need: region, all_envs or target_env
-    def set_scope(self, change_type, environment):
-        if environment is None or self._diff is None:
+    def set_scope(self):
+        if self.environment is None:
+            self.get_all_templates(True)
+        elif self._diff is None:
             self.get_all_templates()
         else:
-            diff_files = self._diff.iter_change_type(change_type)
-            for file in diff_files:
-                path = self.get_file_path(change_type, file)
-                parts = path.parts
-                if "deployments" in parts and path.suffix in self.valid_template_suffixes:
+            change_types = ["A", "M", "D"]
+            for change_type in change_types:
+                diff_files = self._diff.iter_change_type(change_type)
+                for file in diff_files:
+                    path = self.get_file_path(change_type, file)
                     type = self.get_file_type(path)
                     if type is not None:
                         if type == "parameters" and change_type != "D":
                             template_path = self.get_template_for_param_mapping(path)
-                        else:
+                        #TODO - add way to handle changes to "mappings" file_type
+                        elif type == "templates":
                             template_path = path
-                        self.append_file(change_type, template_path)
+                        if template_path is not None:
+                            self.append_file(change_type, template_path)
 
-    def get_templates(self, template_dir):
-        #TODO - moved this logger message from init. See if you need it
-        # message = "Gathering template files for " + \
-        #         "{} environment".format(environment)
+    def crawl_template_dir(self, template_dir):
         templates = []
         if template_dir.is_dir():
+            message = "Gathering templates from directory: " + \
+                "{}".format(template_dir.as_posix())
+            logger.info(message)
             for template in template_dir.iterdir():
                 if template.is_file() and template.suffix in self.valid_template_suffixes:
                     templates.append(template)
         return templates
 
-    def get_all_templates(self):
-        logger.info("Gathering all template files...")
+    def get_all_templates(self, all=False):
         template_file_paths = []
-        environments = self.get_environments()
+        if all:
+            logger.info("Gathering all template files...")
+        environments = self.get_target_envs(all)
         for region in self.regions:
             region_dir = self.deployment_dir / region
             for env in environments:
                 template_dir = region_dir / env / "templates"
-                templates = self.get_templates(template_dir)
+                templates = self.crawl_template_dir(template_dir)
                 template_file_paths.extend(templates)
         for template in template_file_paths:
             self.append_file("M", template)
 
-    def get_created_files(self):
-        self.set_scope("A")
-
-    def get_modified_files(self):
-        self.set_scope("M")
-
-    def get_deleted_files(self):
-        self.set_scope("D")
-
+    #TODO - Add error handling for cases where there are no template changes
     def lint_templates(self):
         for region in self.regions:
             self.lint_commands.append(region)
@@ -287,6 +293,5 @@ class PipelineScope:
         code = subprocess.run(self.lint_commands).returncode
         return code
 
-    #TODO - parse by environment if not handled prior to calling this method
     def deploy_templates(self, environment):
         pass

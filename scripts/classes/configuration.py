@@ -38,10 +38,13 @@ class Configuration:
     ]
 
     def __init__(self, branch):
-        self.initialize_config()
+        self.config = self.initialize_config()
         self.section = branch
-        self.validate_configuration()
-        self.environment = self.get_config_value("environment")
+        self.branch_type = self.validate_configuration()
+        if self.branch_type == "major":
+            self.environment = self.get_config_value("environment")
+        else:
+            self.environment = None
 
     def initialize_config(self):
         # Check if config file already exists
@@ -52,8 +55,9 @@ class Configuration:
                 "to the repository"
             raise ConfigurationError(message)
 
-        self.config = configparser.ConfigParser()
-        self.config.read_file(open(self.config_file))
+        config = configparser.ConfigParser()
+        config.read_file(open(self.config_file))
+        return config
 
     # TODO - If config value is wrapped in quotations, validation test fails. Ease this contraint
     def get_config_value(self, attribute):
@@ -68,18 +72,26 @@ class Configuration:
     # Ensure that required settings exist in the pipeline config
     def validate_configuration(self):
         logger.info("Validating pipeline configuration for branch: {}".format(self.section))
-        for item in self.required_settings:
-            if type(item) == str:
-                setting = self.get_config_value(item)
-            elif type(item) == dict:
-                key = list(item.keys())[0]
-                values = item[key]
-                setting = self.get_config_value(key)
-                if setting not in values:
-                    message = "Required setting ({}) has invalid value: {}. Valid entries are: {}".format(key, setting, ", ".join(values))
+        if self.section in self.config.sections():
+            branch_type = "major"
+            for item in self.required_settings:
+                if type(item) == str:
+                    setting = self.get_config_value(item)
+                elif type(item) == dict:
+                    key = list(item.keys())[0]
+                    values = item[key]
+                    setting = self.get_config_value(key)
+                    if setting not in values:
+                        message = "Required setting ({}) has invalid value: {}. Valid entries are: {}".format(key, setting, ", ".join(values))
+                        logger.error(message)
+                        raise ConfigurationError(message)
+                if setting is None:
+                    message = "Required setting ({}) is missing from section {} of the config file.".format(item, self.section)
                     logger.error(message)
                     raise ConfigurationError(message)
-            if setting is None:
-                message = "Required setting ({}) is missing from section {} of the config file.".format(item, self.section)
-                logger.error(message)
-                raise ConfigurationError(message)
+        else:
+            branch_type = "minor"
+            message = "Configuration is missing section for branch: " + \
+                "{}. Running as minor branch...".format(self.section)
+            logger.info(message)
+        return branch_type
