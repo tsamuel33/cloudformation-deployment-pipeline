@@ -57,7 +57,7 @@ class PipelineScope:
         "-I",
         "--non-zero-exit-code",
         "error",
-        "-t"
+        "-r"
     ]
 
     def __init__(self, branch="fake") -> None:
@@ -280,10 +280,14 @@ class PipelineScope:
         self.set_scope("D")
 
     def lint_templates(self):
+        for region in self.regions:
+            self.lint_commands.append(region)
+        self.lint_commands.append("-t")
         for template in self.create_list:
             self.lint_commands.append(template.as_posix())
         for template in self.update_list:
             self.lint_commands.append(template.as_posix())
+        print(self.lint_commands)
         code = subprocess.run(self.lint_commands).returncode
         return code
 
