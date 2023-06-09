@@ -6,7 +6,6 @@ from pathlib import Path
 from git import Repo
 from git.exc import GitCommandError
 from pathlib import Path
-from sys import exit
 
 # Set up logger
 logger = logging.getLogger(Path(__file__).name)
@@ -126,9 +125,8 @@ class PipelineScope:
                 if existing_tag.commit == commit:
                     return existing_tag
                 else:
-                    #TODO - decide if this should be critical error or a warning
                     logger.error("Tag already exists on a different commit.")
-                    # exit()
+                    raise err
             else:
                 raise err
 
