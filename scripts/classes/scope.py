@@ -128,6 +128,11 @@ class PipelineScope:
                     # exit()
             else:
                 raise err
+            
+    def push_tag_to_remote(self, target_tag):
+        tag = self.repo.tag(target_tag)
+        remote = self.repo.remote()
+        remote.push(tag)
 
     def delete_tag(self, target_tag):
         self.repo.delete_tag(target_tag)
@@ -170,12 +175,11 @@ class PipelineScope:
                 data = myFile.read()
             return data
         except FileNotFoundError:
-            filename = file_path.name
             # Give warning message for missing parameter file. This will not
             # apply to template files as the template must exist to initialize
             # the stack class
             # TODO - Update warning message
-            message = "Parameter file ({}) not found. ".format(filename) + \
+            message = "Parameter file ({}) not found. ".format(file_path.as_posix()) + \
                 "Stack actions will fail if template does not have " + \
                 "default values defined for all parameters."
             logger.warning(message)
