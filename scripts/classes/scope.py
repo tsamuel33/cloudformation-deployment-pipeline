@@ -122,7 +122,8 @@ class PipelineScope:
         except GitCommandError as err:
             if "tag '{}' already exists".format(target_tag) in err.stderr:
                 existing_tag = self.__repo.tag(target_tag)
-                if existing_tag.commit == commit:
+                if str(existing_tag.commit) == str(commit):
+                    logger.info("Tag already exists on commit.")
                     return existing_tag
                 else:
                     logger.error("Tag already exists on a different commit.")
