@@ -243,12 +243,11 @@ class PipelineScope:
                             template_path = path
                         self.append_file(change_type, template_path)
 
-    def get_templates(self, source_dir, template_type):
+    def get_templates(self, template_dir):
         #TODO - moved this logger message from init. See if you need it
         # message = "Gathering template files for " + \
         #         "{} environment".format(environment)
         templates = []
-        template_dir = source_dir / "templates" / template_type
         if template_dir.is_dir():
             for template in template_dir.iterdir():
                 if template.is_file() and template.suffix in self.valid_template_suffixes:
@@ -262,11 +261,9 @@ class PipelineScope:
         for region in self.regions:
             region_dir = self.deployment_dir / region
             for env in environments:
-                env_dir = region_dir / env
-                env_cf = self.get_templates(env_dir, "cloudformation")
-                env_sam = self.get_templates(env_dir, "sam")
-                template_file_paths.extend(env_cf)
-                template_file_paths.extend(env_sam)
+                template_dir = region_dir / env / "templates"
+                templates = self.get_templates(template_dir)
+                template_file_paths.extend(templates)
         for template in template_file_paths:
             self.append_file("M", template)
 
@@ -287,7 +284,6 @@ class PipelineScope:
             self.lint_commands.append(template.as_posix())
         for template in self.update_list:
             self.lint_commands.append(template.as_posix())
-        print(self.lint_commands)
         code = subprocess.run(self.lint_commands).returncode
         return code
 
