@@ -163,7 +163,7 @@ class PipelineScope:
         if self.__last_deploy is None:
             diff = None
         else:
-            diff = self.__head_commit.diff(self.__last_deploy)
+            diff = self.__last_deploy.diff(self.__head_commit)
         return diff
 
     def get_file_type(self, file_path):
@@ -175,7 +175,7 @@ class PipelineScope:
                 file_type = None
             if file_type is None:
                 message = "Template file {} ".format(str(file_path)) + \
-                    "has invalid file structure and will be ignored."
+                    "has invalid folder structure and will be ignored."
                 logger.warning(message)
         else:
             file_type = None
@@ -185,10 +185,12 @@ class PipelineScope:
     def get_file_path(change_type, file):
         if change_type == "D":
             path = Path(file.a_path)
-        else:
+        elif change_type in ["A", "M"]:
             path = Path(file.b_path)
+        elif change_type == "R":
+            path = (Path(file.a_path), Path(file.b_path))
         return path
-    
+
     @staticmethod
     def load_file(file_path):
         try:
@@ -206,25 +208,12 @@ class PipelineScope:
             logger.warning(message)
             return None
 
-    #TODO - check logic of this method. seems to malfunction when providing an environment to set_scope
-    #Figure out if this should be called in append_file or set_scope
     def get_target_envs(self, all_envs=False):
         if all_envs or self.environment is None:
             target_envs = self.get_all_environments()
         else:
             target_envs = ["all_envs", self.environment]
         return target_envs
-
-        # if all_temps:
-        #     return True
-        # else:
-        #     parts = template_path.parts
-        # #     region = parts[-4]
-        #     env = parts[-3]
-        #     if region in self.regions and env in target_envs:
-        #         return True
-        #     else:
-        #         return False
 
     #TODO - move validation to earlier step
     def append_file(self, change_type, template_file_path):
@@ -266,7 +255,9 @@ class PipelineScope:
         elif self.__diff is None:
             self.get_all_templates()
         else:
+            #TODO - also handle "R" change type for renames
             change_types = ["A", "M", "D"]
+            environments = self.get_target_envs()
             for change_type in change_types:
                 diff_files = self.__diff.iter_change_type(change_type)
                 for file in diff_files:
@@ -279,7 +270,9 @@ class PipelineScope:
                         elif type == "templates":
                             template_path = path
                         if template_path is not None:
-                            self.append_file(change_type, template_path)
+                            env = template_path.parts[-3]
+                            if env in environments:
+                                self.append_file(change_type, template_path)
 
     def crawl_template_dir(self, template_dir):
         templates = []
