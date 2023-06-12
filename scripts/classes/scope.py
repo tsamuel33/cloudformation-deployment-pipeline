@@ -230,17 +230,15 @@ class PipelineScope:
     #TODO - ensure it pulls default name if mapping or mapping file don't exist
     def get_template_for_param_mapping(self, param_file_path):
         template_path = None
-        # TODO - add logic to determine between sam and cloudformation. Remove hardcoded "cloudformation"
-            #Achieve this by looking for the "Transform" section. That's mandatory for SAM templates
         template_dir = param_file_path.parents[1] / "templates"
         parts = param_file_path.parts
-        region = parts[1]
-        if parts[2] == "all_envs":
+        region = parts[-4]
+        env = parts[-3]
+        if env == "all_envs":
             all_envs = True
         else:
             all_envs = False
-        # TODO - add logic to get environment. Remove hardcoded "dev"
-        param_mapping = Mappings("parameters", region, "dev", all_envs)
+        param_mapping = Mappings("parameters", region, self.environment, all_envs)
         if param_mapping.mapping is not None:
             template_names = list(param_mapping.mapping.keys())
             for name in template_names:
