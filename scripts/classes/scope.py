@@ -215,7 +215,6 @@ class PipelineScope:
             target_envs = ["all_envs", self.environment]
         return target_envs
 
-    #TODO - move validation to earlier step
     def append_file(self, change_type, template_file_path):
         data = self.load_file(template_file_path)
         if data is not None:
@@ -226,8 +225,6 @@ class PipelineScope:
             elif change_type == "D" and template_file_path not in self.delete_list:
                 self.delete_list.append(template_file_path)
 
-    # Only need this for modifications or renames?
-    #TODO - ensure it pulls default name if mapping or mapping file don't exist
     def get_template_for_param_mapping(self, param_file_path):
         template_path = None
         template_dir = param_file_path.parents[1] / "templates"
@@ -245,6 +242,32 @@ class PipelineScope:
                 param_file = param_mapping.get_mapping_value(name, "parameters")
                 if param_file == param_file_path.name:
                     template_path = template_dir / name
+        if param_mapping.mapping is None or template_path is None:
+            message = "Unable to identify template file corresponding to " + \
+                "parameter file '{}' ".format(param_file_path.as_posix()) + \
+                "via a mapping file. Attempting to locate template via " + \
+                "default naming convention..."
+            logger.warning(message)
+            matching_templates = []
+            for template in template_dir.iterdir():
+                if (template.is_file() and template.stem ==
+                        param_file_path.stem and template.suffix in
+                        self.valid_template_suffixes):
+                    matching_templates.append(template)
+            if len(matching_templates) == 1:
+                template_path = matching_templates[0]
+            elif len(matching_templates) == 0:
+                message = "No template found corresponding " + \
+                    "to {}. ".format(param_file_path.as_posix()) + \
+                    "File will be ignored"
+                logger.warning(message)
+            elif len(matching_templates) > 1:
+                message = "Multiple files found corresponding to the " + \
+                    "default naming convention: " + \
+                    "[{}].".format(", ".join(map(str,matching_templates))) + \
+                    " Files will be ignored if they are not located in " + \
+                    "the repo's diff."
+                logger.warning(message)
         return template_path
 
     def set_scope(self):
