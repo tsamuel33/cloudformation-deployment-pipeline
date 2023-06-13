@@ -198,13 +198,8 @@ class PipelineScope:
                 data = myFile.read()
             return data
         except FileNotFoundError:
-            # Give warning message for missing parameter file. This will not
-            # apply to template files as the template must exist to initialize
-            # the stack class
-            # TODO - Update warning message
-            message = "Parameter file ({}) not found. ".format(file_path.as_posix()) + \
-                "Stack actions will fail if template does not have " + \
-                "default values defined for all parameters."
+            message = "File ({}) not found. ".format(file_path.as_posix()) + \
+                "No stack actions will be taken on the file."
             logger.warning(message)
             return None
 
