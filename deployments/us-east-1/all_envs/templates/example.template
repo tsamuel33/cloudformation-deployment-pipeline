@@ -1,0 +1,29 @@
+---
+AWSTemplateFormatVersion: 2010-09-09
+Description: Example YAML template to test deployment
+
+Parameters:
+  RandomParameter:
+    Type: String
+    Description: Doesn't actually do anything
+    Default: "default"
+  # DefaultParameter:
+  #   Type: String
+  #   Description: Doesn't actually do anything
+  #   Default: "default2"
+  # NoDefaultParameter:
+  #   Type: String
+  #   Description: Doesn't actually do anything
+
+Resources:
+  WaitConditionHandler:
+    Type: 'AWS::CloudFormation::WaitConditionHandle'
+    Properties: {}
+
+  # ADQPCreateApiKey:
+  #   Type: AWS::ApiGateway::ApiKey
+  #   Properties:
+  #     Name: !Join ["", [!Sub "travis", {"Ref": "AWS::StackName"}, "-create-apikey"]]
+  #     Description: "CloudFormation API Key V1"
+  #     Enabled: true
+  #     GenerateDistinctId: false

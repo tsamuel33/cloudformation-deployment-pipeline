@@ -1,3 +1,4 @@
 {
-    "RandomParameter": "non-default"
+    "RandomParameter": "non-default",
+    "ExtraParameter": "ignore me"
 }
