@@ -52,11 +52,11 @@ class AWSCloudFormationStack:
         'UPDATE_ROLLBACK_COMPLETE_CLEANUP_IN_PROGRESS'
     ]
 
-    def __init__(self, template_file_name, parameter_mapping_object,
+    def __init__(self, template_file_path, parameter_mapping_object,
                  template_mapping_object, environment, s3_upload_object,
                  account_number, execution_role_name, check_period=15,
                  all_envs=True, region='us-east-1', stack_prefix=None,
-                 template_type="cloudformation", protection=False) -> None:
+                 protection=False) -> None:
         self._initial_time = datetime.now(timezone.utc)
         self._check_period = check_period
         self._parameter_mapping = parameter_mapping_object
@@ -65,10 +65,11 @@ class AWSCloudFormationStack:
             folder = "all_envs"
         else:
             folder = environment
-        self.rename_logger(folder, template_file_name)
-        self.template_path = self.deployment_dir / region / folder / "templates" / template_type / template_file_name
-        self.parameter_path = self.get_parameter_file_path(template_file_name, region, environment, folder, all_envs)
-        self.stack_name = self.determine_stack_name(template_file_name, stack_prefix)
+        self.template_path = template_file_path
+        self.rename_logger(folder)
+        self.parameter_path = self.get_parameter_file_path(environment, all_envs)
+        self.stack_name = self.determine_stack_name(stack_prefix)
+        self.parameters = self.create_parameter_list()
         self.size = Path(self.template_path).stat().st_size
         self._cf = boto3.client('cloudformation', region_name=region)
         self._upload_bucket = s3_upload_object
@@ -77,15 +78,15 @@ class AWSCloudFormationStack:
 
     # Rename logger so it's easier to identify the source when running
     # stack actions in parallel
-    @staticmethod
-    def rename_logger(folder, template_name):
+    def rename_logger(self, folder):
         global logger
-        logger_name = "-".join((folder, template_name))
+        logger_name = "-".join((folder, self.template_path.name))
         logger = logging.getLogger(logger_name)
 
-    def determine_stack_name(self, filename, prefix):
+    def determine_stack_name(self, prefix):
         # Start off using default stack naming convention
-        stack_suffix = filename.split(".")[0]
+        stack_suffix = self.template_path.stem
+        filename = self.template_path.name
         if prefix is None:
             stack_name = "-".join((self.default_stack_prefix, stack_suffix))
         else:
@@ -99,9 +100,10 @@ class AWSCloudFormationStack:
         stack_name = stack_name.replace("_", "-")
         return stack_name
 
-    def get_parameter_file_path(self, filename, region, environment, folder, all_envs=True):
+    def get_parameter_file_path(self, environment, all_envs=True):
         # Set up default names
-        prefix = filename.split(".")[0]
+        prefix = self.template_path.stem
+        filename = self.template_path.name
         if all_envs:
             default_name = ".".join((prefix, environment, "json"))
         else:
@@ -110,7 +112,8 @@ class AWSCloudFormationStack:
         name = self._parameter_mapping.get_mapping_value(filename, "parameters")
         if name is None:
             name = default_name
-        path = self.deployment_dir / region / folder / "parameters" / name
+        param_dir = self.template_path.parents[1] / "parameters"
+        path = param_dir / name
         return path
 
     @staticmethod
@@ -137,7 +140,7 @@ class AWSCloudFormationStack:
         if self.template_path.suffix == ".json":
             templateObj = json.loads(template)
         elif self.template_path.suffix in [".template", ".yaml", ".yml"]:
-            templateObj = yaml.safe_load(template)
+            templateObj = yaml.load(template, Loader=yaml.BaseLoader)
         try:
             temp_params = templateObj['Parameters']
         except KeyError:
@@ -191,6 +194,7 @@ class AWSCloudFormationStack:
             else:
                 raise err
 
+    #TODO - Add error handling if stack is deleted prior to getting events
     @boto3_error_decorator(logger)
     def get_stack_events(self, token=None):
         if token is None:
@@ -344,8 +348,8 @@ class AWSCloudFormationStack:
         return stackdeletionresponse
 
     def run_stack_actions(self, action_type):
-        if action_type != "DELETE":
-            self.parameters = self.create_parameter_list()
+        # if action_type != "DELETE":
+        #     self.parameters = self.create_parameter_list()
         if action_type == "CREATE":
             self.create_stack()
         elif action_type == "UPDATE":
