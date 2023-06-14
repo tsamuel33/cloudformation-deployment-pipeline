@@ -315,7 +315,6 @@ class PipelineScope:
         for template in template_file_paths:
             self.append_file("M", template)
 
-    #TODO - Add error handling for cases where there are no template changes
     def lint_templates(self):
         for region in self.regions:
             self.lint_commands.append(region)
@@ -324,7 +323,11 @@ class PipelineScope:
             self.lint_commands.append(template.as_posix())
         for template in self.update_list:
             self.lint_commands.append(template.as_posix())
-        code = subprocess.run(self.lint_commands).returncode
+        if self.lint_commands[-1] == "-t":
+            logger.info("No templates in scope for linting.")
+            code = 0
+        else:
+            code = subprocess.run(self.lint_commands).returncode
         return code
 
     def deploy_templates(self, environment):
