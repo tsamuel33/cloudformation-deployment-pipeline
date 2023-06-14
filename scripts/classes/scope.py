@@ -1,7 +1,7 @@
 import logging
 import subprocess
 from .mappings import Mappings
-from .configuration import Configuration, ConfigurationError
+from .configuration import Configuration
 from pathlib import Path
 from git import Repo
 from git.exc import GitCommandError
@@ -169,7 +169,10 @@ class PipelineScope:
     def get_file_type(self, file_path):
         file_parts = file_path.parts
         if "deployments" in file_parts and file_path.suffix in self.valid_template_suffixes:
-            if file_parts[-2] in ["parameters", "templates", "mappings"]:
+            # Only consider changes in parameter or template files as updates
+            # to mappings should not trigger actions on their own, and will
+            # should be captured by corresponding template/parameter changes
+            if file_parts[-2] in ["parameters", "templates"]:
                 file_type = file_parts[-2]
             else:
                 file_type = None
@@ -185,10 +188,8 @@ class PipelineScope:
     def get_file_path(change_type, file):
         if change_type == "D":
             path = Path(file.a_path)
-        elif change_type in ["A", "M"]:
+        elif change_type in ["A", "M", "R"]:
             path = Path(file.b_path)
-        elif change_type == "R":
-            path = (Path(file.a_path), Path(file.b_path))
         return path
 
     @staticmethod
@@ -215,7 +216,7 @@ class PipelineScope:
         if data is not None:
             if change_type == "A" and template_file_path not in self.create_list:
                 self.create_list.append(template_file_path)
-            elif change_type == "M" and template_file_path not in self.update_list:
+            elif change_type in ["M", "R"] and template_file_path not in self.update_list:
                 self.update_list.append(template_file_path)
             elif change_type == "D" and template_file_path not in self.delete_list:
                 self.delete_list.append(template_file_path)
@@ -271,19 +272,17 @@ class PipelineScope:
         elif self.__diff is None:
             self.get_all_templates()
         else:
-            #TODO - also handle "R" change type for renames
-            change_types = ["A", "M", "D"]
+            change_types = ["A", "M", "D", "R"]
             environments = self.get_target_envs()
             for change_type in change_types:
                 diff_files = self.__diff.iter_change_type(change_type)
                 for file in diff_files:
                     path = self.get_file_path(change_type, file)
-                    type = self.get_file_type(path)
-                    if type is not None:
-                        if type == "parameters" and change_type != "D":
+                    file_type = self.get_file_type(path)
+                    if file_type is not None:
+                        if file_type == "parameters" and change_type != "D":
                             template_path = self.get_template_for_param_mapping(path)
-                        #TODO - add way to handle changes to "mappings" file_type
-                        elif type == "templates":
+                        elif file_type == "templates":
                             template_path = path
                         if template_path is not None:
                             env = template_path.parts[-3]
@@ -330,5 +329,5 @@ class PipelineScope:
             code = subprocess.run(self.lint_commands).returncode
         return code
 
-    def deploy_templates(self, environment):
+    def deploy_templates(self):
         pass
