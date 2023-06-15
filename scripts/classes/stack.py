@@ -146,7 +146,7 @@ class AWSCloudFormationStack:
         except KeyError:
             logger.info("Template for stack {} does not use input parameters".format(self.stack_name))
             if parameters is not None:
-                logger.warning("Parameter file {} contains parameters that are not used in the template. File will be ignored.".format(self.parameter_path))
+                logger.info("Parameter file {} contains parameters that are not used in the template. File will be ignored.".format(self.parameter_path))
             return parameterlist
         if parameters is not None:
             logger.info("Loading parameter file: {}".format(self.parameter_path))
@@ -164,7 +164,7 @@ class AWSCloudFormationStack:
                     paramkeys.remove(y)
                     del[temp_params[y]]
                 else:
-                    logger.warning("[{}] is defined in parameter file but not listed in the template file. Value will be ignored.".format(y))
+                    logger.info("[{}] is defined in parameter file but not listed in the template file. Value will be ignored.".format(y))
         if temp_params != {}:
             logger.info("Values for some defined parameters are not found in the parameters file. Checking template for default values...")
             for param in temp_params:
@@ -194,40 +194,44 @@ class AWSCloudFormationStack:
             else:
                 raise err
 
-    #TODO - Add error handling if stack is deleted prior to getting events
     @boto3_error_decorator(logger)
     def get_stack_events(self, token=None):
-        if token is None:
-            response = self._cf.describe_stack_events(StackName=self.stack_name)
-        else:
-            response = self._cf.describe_stack_events(StackName=self.stack_name, NextToken=token)
-        events = response['StackEvents']
-        event_length = len(events)
-        last_event_time = events[event_length - 1]['Timestamp']
-        if last_event_time > self._initial_time:
-            try:
-                next_token = response['NextToken']
-            except KeyError:
-                next_token = None
-        else:
-            next_token = None
-        for event in events:
-            timestamp = event['Timestamp']
-            resource_status = event['ResourceStatus']
-            if "FAILED" in resource_status and timestamp > self._initial_time:
+        try:
+            if token is None:
+                response = self._cf.describe_stack_events(StackName=self.stack_name)
+            else:
+                response = self._cf.describe_stack_events(StackName=self.stack_name, NextToken=token)
+            events = response['StackEvents']
+            last_event_time = events[-1]['Timestamp']
+            if last_event_time > self._initial_time:
                 try:
-                    reason = event['ResourceStatusReason']
-                    logger.error(reason)
+                    next_token = response['NextToken']
                 except KeyError:
-                    reason = "N/A"
-        if next_token is not None:
-            self.get_stack_events(next_token)
+                    next_token = None
+            else:
+                next_token = None
+            for event in events:
+                timestamp = event['Timestamp']
+                resource_status = event['ResourceStatus']
+                if "FAILED" in resource_status and timestamp > self._initial_time:
+                    try:
+                        reason = event['ResourceStatusReason']
+                        logger.error(reason)
+                    except KeyError:
+                        reason = "N/A"
+            if next_token is not None:
+                self.get_stack_events(next_token)
+        except ClientError as err:
+            if err.response['Error']['Code'] == 'ValidationError'and err.response['Error']['Message'] == 'Stack [{}] does not exist'.format(self.stack_name):
+                message = "Deletion of stack [{}]".format(self.stack_name) + \
+                    " complete. No further stack events will be gathered."
+                logger.info(message)
 
     def monitor_stack_progress(self, action_type):
         status = ''
         if action_type == "CREATE":
             self.failure_statuses.append('DELETE_IN_PROGRESS')
-        while status not in self.success_statuses and status not in self.failure_statuses:
+        while status not in self.success_statuses and status not in self.failure_statuses and status is not None:
             sleep(self._check_period)
             status = self.get_stack()
             if status is None and action_type == "DELETE":
@@ -238,6 +242,8 @@ class AWSCloudFormationStack:
             elif status in self.failure_statuses:
                 logger.error("Stack action {} failed on stack {}. Gathering details...".format(action_type,self.stack_name))
                 self.get_stack_events()
+            elif status is None:
+                logger.info("Stack {} not found.".format(self.stack_name))
             else:
                 logger.info("Stack action {} still in progress for stack {}...".format(action_type,self.stack_name))
 
@@ -348,8 +354,6 @@ class AWSCloudFormationStack:
         return stackdeletionresponse
 
     def run_stack_actions(self, action_type):
-        # if action_type != "DELETE":
-        #     self.parameters = self.create_parameter_list()
         if action_type == "CREATE":
             self.create_stack()
         elif action_type == "UPDATE":
