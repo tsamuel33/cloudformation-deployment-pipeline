@@ -195,7 +195,8 @@ class AWSCloudFormationStack:
                 raise err
 
     @boto3_error_decorator(logger)
-    def get_stack_events(self, token=None):
+    def get_stack_events(self, token=None, output="errors"):
+        resources = []
         try:
             if token is None:
                 response = self._cf.describe_stack_events(StackName=self.stack_name)
@@ -213,14 +214,27 @@ class AWSCloudFormationStack:
             for event in events:
                 timestamp = event['Timestamp']
                 resource_status = event['ResourceStatus']
-                if "FAILED" in resource_status and timestamp > self._initial_time:
+                if "FAILED" in resource_status:
                     try:
                         reason = event['ResourceStatusReason']
-                        logger.error(reason)
                     except KeyError:
                         reason = "N/A"
-            if next_token is not None:
-                self.get_stack_events(next_token)
+                    if output == "errors" and timestamp > self._initial_time:
+                        id = event['LogicalResourceId']
+                        message = "".join(("[", id, "]: ", reason))
+                        logger.error(message)
+                    if output == "resources":
+                        fail_message = "The following resource(s) failed to delete: ["
+                        if fail_message in reason:
+                            resource_string = reason.split(fail_message)[-1].rstrip("]. ")
+                            resources_list = resource_string.split(", ")
+                            resources.extend(resources_list)
+            if next_token is not None and output == "errors":
+                self.get_stack_events(token=next_token)
+            elif output == "resources":
+                # Remove duplicate resources from resource list
+                resources = list(set(resources))
+                return resources
         except ClientError as err:
             if err.response['Error']['Code'] == 'ValidationError'and err.response['Error']['Message'] == 'Stack [{}] does not exist'.format(self.stack_name):
                 message = "Deletion of stack [{}]".format(self.stack_name) + \
@@ -288,7 +302,9 @@ class AWSCloudFormationStack:
             logger.info('Creation of stack {} in progress...'.format(createTemplateResponse['StackId']))
         except ClientError as err:
             if err.response['Error']['Code'] == "AlreadyExistsException":
-                logger.info("Stack already exists. No action taken.")
+                message = "Stack [{}] already ".format(self.stack_name) + \
+                    "exists. No action taken."
+                logger.info(message)
             else:
                 raise err
 
@@ -340,15 +356,19 @@ class AWSCloudFormationStack:
 
     #TODO - Add change set methods (create, describe, delete)
 
-    #TODO - Add way to handle retaining resources when stack is in DELETE_FAILED
+    #TODO - Add a way to trigger the skipping of failed resources (via config?)
     @boto3_error_decorator(logger)
-    def delete_stack(self):
+    def delete_stack(self, retain_list=[], skip_failed_resources=False):
         logger.info("Deleting stack: {}".format(self.stack_name))
+        if skip_failed_resources:
+            status = self.get_stack()
+            if status == 'DELETE_FAILED':
+                logger.info("Gathering failed resources...")
+                retain_list = self.get_stack_events(output="resources")
+                logger.info("Retaining the following resources: {}".format(", ".join(retain_list)))
         stackdeletionresponse = self._cf.delete_stack(
             StackName=self.stack_name,
-            # RetainResources=[
-            #     'string',
-            # ],
+            RetainResources=retain_list,
             RoleARN=self.role_arn
         )
         return stackdeletionresponse
