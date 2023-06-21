@@ -2,7 +2,7 @@ import boto3
 import json
 import logging
 import yaml
-from botocore.exceptions import ClientError
+from botocore.exceptions import ClientError, WaiterError
 from datetime import datetime, timezone
 from .decorators import boto3_error_decorator
 from pathlib import Path
@@ -34,6 +34,7 @@ class AWSCloudFormationStack:
 
     deployment_dir = Path(__file__).parents[2] / "deployments"
     default_stack_prefix = "managed-app"
+    changeset_prefix="github-actions-change-set"
     success_statuses = [
         'CREATE_COMPLETE',
         'UPDATE_COMPLETE',
@@ -132,6 +133,18 @@ class AWSCloudFormationStack:
                 "default values defined for all parameters."
             logger.warning(message)
             return None
+        
+    def load_template_body(self):
+        body = self.load_file(self.template_path)
+        self._cf.validate_template(TemplateBody=body)
+        return body
+
+    def upload_template(self):
+        logger.info('{} file size is larger than quota. Uploading to {}'.format(self.template_path.name, self._upload_bucket.bucket_name))
+        self._upload_bucket.upload_file(self.template_path)
+        object_url = "".join(("https://", self._upload_bucket.bucket_name, ".s3.amazonaws.com/", self.template_path.name))
+        self._cf.validate_template(TemplateURL=object_url)
+        return object_url
 
     def create_parameter_list(self):
         template = self.load_file(self.template_path)
@@ -266,8 +279,7 @@ class AWSCloudFormationStack:
         logger.info("Creating stack: {}".format(self.stack_name))
         try:
             if self.size < 51200:
-                body = self.load_file(self.template_path)
-                self._cf.validate_template(TemplateBody=body)
+                body = self.load_template_body()
                 createTemplateResponse = self._cf.create_stack(
                     StackName=self.stack_name,
                     TemplateBody=body,
@@ -282,10 +294,7 @@ class AWSCloudFormationStack:
                     OnFailure='DELETE'
                 )
             else:
-                logger.info('{} file size is larger than quota. Uploading to {}'.format(self.template_path.name, self._upload_bucket.bucket_name))
-                self._upload_bucket.upload_file(self.template_path)
-                object_url = "".join(("https://", self._upload_bucket.bucket_name, ".s3.amazonaws.com/", self.template_path.name))
-                self._cf.validate_template(TemplateURL=object_url)
+                object_url = self.upload_template()
                 createTemplateResponse = self._cf.create_stack(
                     StackName=self.stack_name,
                     TemplateURL=object_url,
@@ -313,8 +322,7 @@ class AWSCloudFormationStack:
         logger.info("Updating stack: {}".format(self.stack_name))
         try:
             if self.size < 51200:
-                body = self.load_file(self.template_path)
-                self._cf.validate_template(TemplateBody=body)
+                body = self.load_template_body()
                 stackUpdateResponse = self._cf.update_stack(
                     StackName=self.stack_name,
                     TemplateBody=body,
@@ -328,10 +336,7 @@ class AWSCloudFormationStack:
                     DisableRollback=False
                 )
             else:
-                logger.info('{} file size is larger than quota. Uploading to {}'.format(self.template_path.name, self._upload_bucket.bucket_name))
-                self._upload_bucket.upload_file(self.template_path)
-                object_url = "".join(("https://", self._upload_bucket.bucket_name, ".s3.amazonaws.com/", self.template_path.name))
-                self._cf.validate_template(TemplateURL=object_url)
+                object_url = self.upload_template()
                 stackUpdateResponse = self._cf.update_stack(
                     StackName=self.stack_name,
                     TemplateURL=object_url,
@@ -354,7 +359,86 @@ class AWSCloudFormationStack:
             else:
                 raise err
 
-    #TODO - Add change set methods (create, describe, delete)
+    @boto3_error_decorator(logger)
+    def describe_change_set(self, change_set_id=None):
+        if change_set_id is None:
+            change_set_id = "-".join((self.changeset_prefix,self.stack_name))
+        logger.info("Getting details for change set: {}".format(change_set_id))
+        response = self._cf.describe_change_set(ChangeSetName=change_set_id, StackName=self.stack_name)
+        id = response['ChangeSetId']
+        status = response['Status']
+        changes = response['Changes']
+        return (id, status, changes)
+
+    @boto3_error_decorator(logger)
+    def create_change_set(self):
+        logger.info("Creating change set for stack: {}".format(self.stack_name))
+        try:
+            if self.size < 51200:
+                body = self.load_template_body()
+                response = self._cf.create_change_set(
+                    StackName=self.stack_name,
+                    TemplateBody=body,
+                    Parameters=self.parameters,
+                    Capabilities=[
+                        'CAPABILITY_IAM',
+                        'CAPABILITY_NAMED_IAM',
+                        'CAPABILITY_AUTO_EXPAND',
+                    ],
+                    RoleARN=self.role_arn,
+                    ChangeSetName="-".join((self.changeset_prefix,self.stack_name)),
+                    Description='Update to stack via GitHub Actions',
+                    ChangeSetType='UPDATE'
+                )
+            else:
+                object_url = self.upload_template()
+                response = self._cf.create_change_set(
+                    StackName=self.stack_name,
+                    TemplateURL=object_url,
+                    Parameters=self.parameters,
+                    Capabilities=[
+                        'CAPABILITY_IAM',
+                        'CAPABILITY_NAMED_IAM',
+                        'CAPABILITY_AUTO_EXPAND',
+                    ],
+                    RoleARN=self.role_arn,
+                    ChangeSetName="-".join((self.changeset_prefix,self.stack_name)),
+                    Description='Update to stack via GitHub Actions',
+                    ChangeSetType='UPDATE'
+                )
+            id = response['Id']
+            waiter = self._cf.get_waiter('change_set_create_complete')
+            waiter.wait(
+                ChangeSetName=id,
+                WaiterConfig={
+                    'Delay': self._check_period
+                }
+            )
+            logger.info("Change set created: {}".format(id))
+            return id
+        except WaiterError as err:
+            reason = err.last_response['StatusReason']
+            if reason == "The submitted information didn't contain changes. Submit different information to create a change set.":
+                logger.info("Change set did not contain any changes. Deleting change set...")
+                self.delete_change_set()
+            else:
+                raise err
+        except ClientError as err:
+            if err.response['Error']['Code'] == 'AlreadyExistsException':
+                logger.info("Conflicting change set exists. Deleting conflicting change set...")
+                id = self.describe_change_set()[0]
+                self.delete_change_set(id)
+                logger.info("Change set deleted. Attempting to create new change set...")
+                self.create_change_set()
+            else:
+                raise err
+
+    @boto3_error_decorator(logger)
+    def delete_change_set(self, change_set_id=None):
+        if change_set_id is None:
+            change_set_id = "-".join((self.changeset_prefix,self.stack_name))
+        logger.info("Deleting change set: {}".format(change_set_id))
+        self._cf.delete_change_set(ChangeSetName=change_set_id, StackName=self.stack_name)
 
     #TODO - Add a way to trigger the skipping of failed resources (via config?)
     @boto3_error_decorator(logger)
