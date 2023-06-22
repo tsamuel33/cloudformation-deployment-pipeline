@@ -53,5 +53,5 @@ class Mappings:
             elif mapping_type == "templates":
                 message = "Key ({}) not found in mapping ".format(key) + \
                     "file. Default stack naming convention will be used."
-            logger.warning(message)
+            logger.info(message)
             return None

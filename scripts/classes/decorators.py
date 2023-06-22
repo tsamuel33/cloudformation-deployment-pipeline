@@ -12,9 +12,9 @@ def boto3_error_decorator(logger):
                 return func(*args, **kwargs)
             except ClientError as err:
                 logger.error(err)
-                exit()
+                exit(err)
             except ParamValidationError as err:
                 logger.error(err)
-                exit()
+                exit(err)
         return error_wrapper
     return error_decorator
