@@ -5,6 +5,8 @@ import yaml
 from botocore.exceptions import ClientError, WaiterError
 from datetime import datetime, timezone
 from .decorators import boto3_error_decorator
+from .mappings import Mappings
+from .s3 import AWSS3UploadBucket
 from pathlib import Path
 from sys import exit
 from time import sleep
@@ -53,15 +55,21 @@ class AWSCloudFormationStack:
         'UPDATE_ROLLBACK_COMPLETE_CLEANUP_IN_PROGRESS'
     ]
 
-    def __init__(self, template_file_path, parameter_mapping_object,
-                 template_mapping_object, environment, s3_upload_object,
-                 account_number, execution_role_name, check_period=15,
-                 all_envs=True, region='us-east-1', stack_prefix=None,
-                 protection=False) -> None:
+    def __init__(self, template_file_path, environment, account_number,
+                 execution_role_name, check_period=15, stack_prefix=None,
+                 protection=False, upload_bucket_name=None) -> None:
         self._initial_time = datetime.now(timezone.utc)
         self._check_period = check_period
-        self._parameter_mapping = parameter_mapping_object
-        self._template_mapping = template_mapping_object
+        parts = template_file_path.parts
+        region = parts[-4]
+        if parts[-3] == "all_envs":
+            all_envs = True
+            folder = "all_envs"
+        else:
+            all_envs = False
+            folder = environment
+        self._parameter_mapping = self.get_mapping_file("parameters", region, environment, all_envs)
+        self._template_mapping = self.get_mapping_file("templates", region, environment, all_envs)
         if all_envs:
             folder = "all_envs"
         else:
@@ -73,7 +81,8 @@ class AWSCloudFormationStack:
         self.parameters = self.create_parameter_list()
         self.size = Path(self.template_path).stat().st_size
         self._cf = boto3.client('cloudformation', region_name=region)
-        self._upload_bucket = s3_upload_object
+        if self.size > 51200:
+            self._upload_bucket = AWSS3UploadBucket(region, upload_bucket_name)
         self.role_arn = "".join(("arn:aws:iam::", account_number, ":role/", execution_role_name))
         self._termination_protection = protection
 
@@ -83,6 +92,10 @@ class AWSCloudFormationStack:
         global logger
         logger_name = "-".join((folder, self.template_path.name))
         logger = logging.getLogger(logger_name)
+
+    def get_mapping_file(self, map_type, region, environment, all_envs):
+        mapping = Mappings(map_type, region, environment, all_envs)
+        return mapping
 
     def determine_stack_name(self, prefix):
         # Start off using default stack naming convention
@@ -264,13 +277,19 @@ class AWSCloudFormationStack:
             if status is None and action_type == "DELETE":
                 logger.info("Stack {} has been deleted".format(self.stack_name))
                 status = 'DELETE_COMPLETE'
+                return "SUCCESS"
             elif status in self.success_statuses:
                 logger.info("Stack action {} complete for stack: {}".format(action_type,self.stack_name))
+                return "SUCCESS"
             elif status in self.failure_statuses:
                 logger.error("Stack action {} failed on stack {}. Gathering details...".format(action_type,self.stack_name))
                 self.get_stack_events()
+                return "FAILURE"
             elif status is None:
                 logger.info("Stack {} not found.".format(self.stack_name))
+                # This most scenario should not occur, but considering a
+                # failure if stack can't be found for CREATE or UPDATE actions
+                return "FAILURE"
             else:
                 logger.info("Stack action {} still in progress for stack {}...".format(action_type,self.stack_name))
 
@@ -309,11 +328,13 @@ class AWSCloudFormationStack:
                     OnFailure='DELETE'
                 )
             logger.info('Creation of stack {} in progress...'.format(createTemplateResponse['StackId']))
+            return None
         except ClientError as err:
             if err.response['Error']['Code'] == "AlreadyExistsException":
                 message = "Stack [{}] already ".format(self.stack_name) + \
                     "exists. No action taken."
                 logger.info(message)
+                return "SUCCESS"
             else:
                 raise err
 
@@ -350,12 +371,15 @@ class AWSCloudFormationStack:
                     DisableRollback=False
                 )
             logger.info('Update of stack {} in progress...'.format(stackUpdateResponse['StackId']))
+            return None
         except ClientError as err:
             if err.response['Error']['Code'] == 'ValidationError' and err.response['Error']['Message'] == 'No updates are to be performed.':
                 logger.info("No updates required for stack: {}".format(self.stack_name))
+                return "SUCCESS"
             elif err.response['Error']['Code'] == 'ValidationError' and err.response['Error']['Message'] == 'Stack [{}] does not exist'.format(self.stack_name):
                 logger.info("Stack {} does not exist. Attempting to create stack...".format(self.stack_name))
-                self.run_stack_actions("CREATE")
+                status = self.run_stack_actions("CREATE")
+                return status
             else:
                 raise err
 
@@ -444,24 +468,32 @@ class AWSCloudFormationStack:
     @boto3_error_decorator(logger)
     def delete_stack(self, retain_list=[], skip_failed_resources=False):
         logger.info("Deleting stack: {}".format(self.stack_name))
-        if skip_failed_resources:
-            status = self.get_stack()
-            if status == 'DELETE_FAILED':
-                logger.info("Gathering failed resources...")
+        stack_status = self.get_stack()
+        if stack_status is None:
+            logger.info("Stack {} has been deleted".format(self.stack_name))
+            status = 'SUCCESS'
+            return status
+        elif skip_failed_resources:
+            if stack_status == 'DELETE_FAILED':
+                logger.info("Gathering failed resources from previous deletion attempt...")
                 retain_list = self.get_stack_events(output="resources")
-                logger.info("Retaining the following resources: {}".format(", ".join(retain_list)))
-        stackdeletionresponse = self._cf.delete_stack(
+                logger.info("Attempting to delete stack while retaining the following resources: {}".format(", ".join(retain_list)))
+        self._cf.delete_stack(
             StackName=self.stack_name,
             RetainResources=retain_list,
             RoleARN=self.role_arn
         )
-        return stackdeletionresponse
+        return None
 
     def run_stack_actions(self, action_type):
         if action_type == "CREATE":
-            self.create_stack()
+            status = self.create_stack()
         elif action_type == "UPDATE":
-            self.update_stack()
+            status = self.update_stack()
         elif action_type == "DELETE":
-            self.delete_stack()
-        self.monitor_stack_progress(action_type)
+            status = self.delete_stack()
+        if status is not None:
+            outcome = status
+        else:
+            outcome = self.monitor_stack_progress(action_type)
+        return outcome
