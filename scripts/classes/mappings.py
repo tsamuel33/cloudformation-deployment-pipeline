@@ -12,7 +12,7 @@ class Mappings:
 
     def __init__(
             self, mapping_type, region, environment,
-            all_environments=False) -> None:
+            all_environments) -> None:
         if all_environments:
             mapping_dir = self.deployment_dir/region/"all_envs"/"mappings"
             mapping_file_name = ".".join((mapping_type, environment, "json"))

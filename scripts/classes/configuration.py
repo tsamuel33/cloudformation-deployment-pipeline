@@ -60,9 +60,9 @@ class Configuration:
         return config
 
     # TODO - If config value is wrapped in quotations, validation test fails. Ease this contraint
-    def get_config_value(self, attribute):
+    def get_config_value(self, attribute, fallback=None):
         try:
-            value = self.config[self.section].get(attribute)
+            value = self.config[self.section].get(attribute, fallback)
             return value
         except KeyError:
             message = "Configuration is missing section: {}".format(self.section)
