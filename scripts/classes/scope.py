@@ -18,6 +18,7 @@ class PipelineScope:
     __remote = __repo.remote()
     __head_commit = __repo.head.commit
     deployment_dir = root_dir / "deployments"
+    cfn_guard_dir = root_dir / "rules" / "cfn-guard"
     tag_prefix = "cf-deployment"
     valid_template_suffixes = [
         ".yaml",
@@ -60,6 +61,12 @@ class PipelineScope:
         "--non-zero-exit-code",
         "error",
         "-r"
+    ]
+    guard_commands = [
+        "cfn-guard",
+        "validate",
+        "-r",
+        cfn_guard_dir.as_posix()
     ]
 
     def __init__(self, branch, environment) -> None:
@@ -328,6 +335,20 @@ class PipelineScope:
             code = 0
         else:
             code = subprocess.run(self.lint_commands).returncode
+        return code
+    
+    def validate_templates(self):
+        for template in self.create_list:
+            self.guard_commands.append("-d")
+            self.guard_commands.append(template.as_posix())
+        for template in self.update_list:
+            self.guard_commands.append("-d")
+            self.guard_commands.append(template.as_posix())
+        if self.guard_commands[-1] == self.cfn_guard_dir.as_posix():
+            logger.info("No templates in scope for validation.")
+            code = 0
+        else:
+            code = subprocess.run(self.guard_commands).returncode
         return code
 
     @staticmethod
