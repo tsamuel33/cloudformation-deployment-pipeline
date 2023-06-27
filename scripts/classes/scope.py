@@ -337,7 +337,7 @@ class PipelineScope:
             code = subprocess.run(self.lint_commands).returncode
         return code
     
-    def validate_templates(self):
+    def cfn_guard_validate(self):
         for template in self.create_list:
             self.guard_commands.append("-d")
             self.guard_commands.append(template.as_posix())
