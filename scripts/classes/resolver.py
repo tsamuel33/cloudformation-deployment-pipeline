@@ -8,7 +8,6 @@ from pathlib import Path
 from jsonpath_ng.ext import parse
 import re
 
-LOADER = yaml.SafeLoader
 root_dir = Path(__file__).parents[2]
 template_path = root_dir / "deployments" / "us-east-1" / "all_envs" / "templates" / "example.template"
 # template_path = root_dir / "deployments" / "us-east-1" / "all_envs" / "templates" / "example_guard.json"
@@ -39,54 +38,115 @@ parameters_from_stack = [
 class Ref(object):
     def __init__(self, data):
         self.data = data
-    def __repr__(self):
-        return '{ "Ref" : %s }' % self.data
-    
+
 class Sub(object):
     def __init__(self, data):
         self.data = data
-    def __repr__(self):
-        return '{ "Fn::Sub" : %s } ' % self.data
 
-# Intrisnsic function constructors
+class Split(object):
+    def __init__(self, data):
+        self.data = data
+
+class Select(object):
+    def __init__(self, data):
+        self.data = data
+
+class Join(object):
+    def __init__(self, data):
+        self.data = data
+
+class ImportValue(object):
+    def __init__(self, data):
+        self.data = data
+
+class GetAZs(object):
+    def __init__(self, data):
+        self.data = data
+
+class GetAtt(object):
+    def __init__(self, data):
+        self.data = data
+
+class FindInMap(object):
+    def __init__(self, data):
+        self.data = data
+
+class Cidr(object):
+    def __init__(self, data):
+        self.data = data
+
+class Base64(object):
+    def __init__(self, data):
+        self.data = data
+    
+class And(object):
+    def __init__(self, data):
+        self.data = data
+
+class Equals(object):
+    def __init__(self, data):
+        self.data = data
+
+class If(object):
+    def __init__(self, data):
+        self.data = data
+
+class Not(object):
+    def __init__(self, data):
+        self.data = data
+
+class Or(object):
+    def __init__(self, data):
+        self.data = data
+
+class Condition(object):
+    def __init__(self, data):
+        self.data = data
+
+# Intrisnsic function constructor
 def yaml_constructor(loader, node):
     if isinstance(node, (yaml.nodes.SequenceNode)):
         value = loader.construct_sequence(node)
-    else:
+    elif isinstance(node, (yaml.nodes.MappingNode)):
+        value = loader.construct_mapping(node)
+    elif isinstance(node, (yaml.nodes.ScalarNode)):
         value = loader.construct_scalar(node)
     class_name = node.tag.lstrip("!")
     class_obj = getattr(sys.modules[__name__], class_name)
-    return class_obj(value)
+    if class_name == "Ref":
+        return { "Ref": class_obj(value).data }
+    elif class_name == "GetAtt":
+        return { "Fn::GetAtt" : class_obj(value).data.split(".") }
+    elif class_name == "Condition":
+        return { "Condition" : class_obj(value).data }
+    else:
+        return { "::".join(("Fn", class_name)) : class_obj(value).data }
 
 def add_yaml_constructor(tag):
-    yaml.add_constructor(tag, yaml_constructor, LOADER)
-
-# def ref_constructor(loader, node):
-#     if isinstance(node, (yaml.nodes.SequenceNode)):
-#         value = loader.construct_sequence(node)
-#     else:
-#         value = loader.construct_scalar(node)
-#     print(type(node.tag))
-#     return Ref(value)
-
-# def sub_constructor(loader, node):
-#     if isinstance(node, (yaml.nodes.SequenceNode)):
-#         value = loader.construct_sequence(node)
-#     else:
-#         value = loader.construct_scalar(node)
-#     return Sub(value)
+    yaml.add_constructor(tag, yaml_constructor, yaml.SafeLoader)
 
 # Add constructors to YAML loader
 tags = [
     u'!Ref',
-    u'!Sub'
+    u'!Sub',
+    u'!Split',
+    u'!Select',
+    u'!Join',
+    u'!ImportValue',
+    u'!GetAZs',
+    u'!GetAtt',
+    u'!FindInMap',
+    u'!Cidr',
+    u'!Base64',
+    u'!And',
+    u'!Equals',
+    u'!If',
+    u'!Not',
+    u'!Or',
+    u'!Condition'
 ]
 for tag in tags:
     add_yaml_constructor(tag)
-
-
-def get_ref_value(ref_name, template_path, parameter_path=None):
-    pass
 
 def create_test_file(filename, data):
     with open(filename, "w") as file:
@@ -105,10 +165,12 @@ def convert_to_json(data_path):
         data_object = json.loads(template_data)
     template_file.close()
     json_object = json.dumps(data_object, indent=2, default=str)
-    # parent = data_path.parent
-    # test_file_name = "".join((data_path.stem, "_guard", ".json"))
-    # test_file_path = parent / test_file_name
-    # create_test_file(test_file_path, json_object)
+
+    #Create file for testing
+    parent = data_path.parent
+    test_file_name = "".join((data_path.stem, "_guard", ".json"))
+    test_file_path = parent / test_file_name
+    create_test_file(test_file_path, json_object)
     return json_object
 
 def cfn_guard_validate(template_path):
@@ -160,7 +222,7 @@ def main():
     # exact = parse('Resources.DefaultSecurityGroup.Properties.VpcId')
     # print(exact.find(json_data)[0].value)
     find_and_replace_refs(resources_parser, json_data)
-    print(json_data)
+    # print(json_data)
 
 
     # # output = [match.value for match in test_parse.find(json_data)]
