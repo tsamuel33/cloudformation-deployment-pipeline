@@ -1,38 +1,8 @@
 import json
 import os
-import subprocess
 import sys
 import yaml
-from pathlib import Path
-# from jsonpath_ng import jsonpath, parse
 from jsonpath_ng.ext import parse
-import re
-
-root_dir = Path(__file__).parents[2]
-template_path = root_dir / "deployments" / "us-east-1" / "all_envs" / "templates" / "example.template"
-# template_path = root_dir / "deployments" / "us-east-1" / "all_envs" / "templates" / "example_guard.json"
-cfn_guard_dir = root_dir / "rules" / "cfn-guard"
-guard_commands = [
-        "cfn-guard",
-        "validate",
-        "-r",
-        cfn_guard_dir.as_posix()
-    ]
-
-parameters_from_stack = [
-    {
-        'ParameterKey': 'RandomParameter',
-        'ParameterValue': 'non-default'
-    },
-    {
-        'ParameterKey': 'IngressProtocol',
-        'ParameterValue': '6'
-    },
-    {
-        'ParameterKey': 'Prefix',
-        'ParameterValue': 'TravisParam'
-    }
-]
 
 # Instrisic function classes
 class Ref(object):
@@ -113,12 +83,10 @@ def yaml_constructor(loader, node):
         value = loader.construct_scalar(node)
     class_name = node.tag.lstrip("!")
     class_obj = getattr(sys.modules[__name__], class_name)
-    if class_name == "Ref":
-        return { "Ref": class_obj(value).data }
-    elif class_name == "GetAtt":
+    if class_name == "GetAtt":
         return { "Fn::GetAtt" : class_obj(value).data.split(".") }
-    elif class_name == "Condition":
-        return { "Condition" : class_obj(value).data }
+    elif class_name in ["Ref", "Condition"]:
+        return { class_name : class_obj(value).data }
     else:
         return { "::".join(("Fn", class_name)) : class_obj(value).data }
 
@@ -152,6 +120,11 @@ def create_test_file(filename, data):
     with open(filename, "w") as file:
         file.write(data)
         file.close()
+    # #Create file for testing
+    # parent = data_path.parent
+    # test_file_name = "".join((data_path.stem, "_guard", ".json"))
+    # test_file_path = parent / test_file_name
+    # create_test_file(test_file_path, json_object)
 
 def delete_test_file(file):
     os.remove(file)
@@ -165,112 +138,54 @@ def convert_to_json(data_path):
         data_object = json.loads(template_data)
     template_file.close()
     json_object = json.dumps(data_object, indent=2, default=str)
-
-    #Create file for testing
-    parent = data_path.parent
-    test_file_name = "".join((data_path.stem, "_guard", ".json"))
-    test_file_path = parent / test_file_name
-    create_test_file(test_file_path, json_object)
     return json_object
 
-def cfn_guard_validate(template_path):
-    guard_commands.append("-d")
-    guard_commands.append(template_path.as_posix())
-    code = subprocess.run(guard_commands).returncode
-    return code
+def parse_parameters(parameter_list):
+    if parameter_list is None:
+        parameters = None
+    else:
+        parameters = dict((param['ParameterKey'], param['ParameterValue']) for param in parameter_list)
+    return parameters
 
 def get_param_value(parameters, param_key):
-    result = None
     if parameters is not None:
-        for entry in parameters:
-            if entry['ParameterKey'] == param_key:
-                result = entry['ParameterValue']
-                break
-    if result is None:
-        # Placeholder value so the regex sub command doesn't get
-        # confused later.
-        output = ":".join(('Resource_Ref', param_key))
-    else:
-        output = result
+        try:
+            output = parameters[param_key]
+        except KeyError:
+            output = None
+    elif parameters is None:
+        output = None
     return output
 
-def replace_string(regex, replacements : list, source_string):
-    output = source_string
-    for replacement in replacements:
-        output = re.sub(regex, replacement, output, count=1)
+# JSONPath is unable to find a path that has "::"" in it (i.e, Fn::Sub).
+# Add quotations to the field name for the search to work.
+def clean_location(location):
+    output = '$'
+    parts = location.split(".")
+    for part in parts:
+        if "::" in part:
+            output = output + "." + '"{}"'.format(part)
+        else:
+            output = output + "." + part
     return output
 
-def find_and_replace_refs(parser, data, parameters=None):
-    ref_regex = '([\'"]?{\s*[\\\\]?[\'"]?Ref[\\\\]?[\'"]?\s*:\s*[\\\\]?[\'"]?)([a-zA-Z]*)([\\\\]?[\'"]?\s*}[\'"]?)'
-    ref_locations = [str(match.full_path) for match in parser.find(data) if (isinstance(match.value, str) and re.search(ref_regex, match.value) is not None)]
-    for location in ref_locations:
-        exact = parse(location)
-        value = exact.find(data)[0].value #gives the string value of the jsonpath location identified
-        to_replace = re.findall(ref_regex, value) #gives list of refs in the above string
-        to_replace_param_names = [param[1] for param in to_replace] # names of parameters that need values
-        to_replace_param_values = [get_param_value(parameters_from_stack, param) for param in to_replace_param_names] # values corresponding to above
-        output = replace_string(ref_regex, to_replace_param_values, value)
-        exact.update(data, output)
+def find_and_replace_refs(parser, data, parameters):
+    locations = [str(match.full_path) for match in parser.find(data) if (isinstance(match.value, dict)) and "Ref" in match.value]
+    for location in locations:
+        new_location = clean_location(location)
+        location_path = parse(new_location)
+        value = location_path.find(data)[0].value
+        param_name = value['Ref']
+        param_value = get_param_value(parameters, param_name)
+        if param_value is not None:
+            location_path.update(data, param_value)
 
-def main():
-    data = convert_to_json(template_path) #string
-    json_data = json.loads(data)
-    # test_parse = parse('$.Resources.DefaultSecurityGroup.Properties.VpcId')
-    # x = test_parse.find(json_data)
-    # print(x[0].value)
+def find_and_replace_subs(parser, data, parameters):
+    locations = [str(match.full_path) for match in parser.find(data) if (isinstance(match.value, dict)) and "Fn::Sub" in match.value]
+
+def main(stack):
     resources_parser = parse("$.Resources..*")
-    # exact = parse('Resources.DefaultSecurityGroup.Properties.VpcId')
-    # print(exact.find(json_data)[0].value)
-    find_and_replace_refs(resources_parser, json_data)
-    # print(json_data)
-
-
-    # # output = [match.value for match in test_parse.find(json_data)]
-    # ref_regex = '([\'"]?{\s*[\\\\]?[\'"]?Ref[\\\\]?[\'"]?\s*:\s*[\\\\]?[\'"]?)([a-zA-Z0-9]*)([\\\\]?[\'"]?\s*}[\'"]?)'
-    # refs = [parse(location).find(json_data)[0].value for location in ref_locations]
-    # param_names = [re.search(ref_regex, ref).group(2) for ref in refs]
-    # param_values = [get_param_default(parameters_from_stack, param_name) for param_name in param_names]
-    # print(param_names)
-    # print(param_values)
-
-
-    # x = parse('Resources..Type')
-    # aws_types = [match.value for match in x.find(json.loads(data))]
-    # print(aws_types)
-    # jsonpath.Where
-    # replace_refs(json_string, params)
-    
-    # # # output = re.findall(ref_regex, json_string) #will need to use this since search only returns the first match in a string
-    # test_regex = '([\'"]?{\s*[\\\\]?[\'"]?Ref[\\\\]?[\'"]?\s*:\s*[\\\\]?[\'"]?)([a-zA-Z]*)([\\\\]?[\'"]?\s*}[\'"]?)'
-    # output = re.search(test_regex, json_string)
-    # outputs = re.findall(test_regex, json_string)
-    # print(type(outputs))
-    # print(output.group(2))
-    # param_name = output.group(0)
-    # resources = json_data['Resources']
-    # # x = get_param_default(params, 'Prefix')
-    # ref = resources['DefaultSecurityGroup']['Properties']['VpcId']
-    # refs = parse("$.Resources..*")
-    # values = [(str(match.full_path), match.value) for match in refs.find(json_data) if '"Ref" :' in str(match.value)]
-    # print(values)
-    # for value in values:
-    #     default = get_param_default(params, )
-    # ref_list = [k for k,v in resources.items()] #if "Ref" in v
-    # print(ref_list)
-    # if ref == '{ "Ref" : RandomParameter }':
-    #     print('Correct')
-    # # else:
-    # #     print('Incorrect')
-    # # print(type(json_data))
-    # # print(params)
-
-if __name__ == "__main__":
-    #TODO - set up module to accept a stack class instance
-    main()
-    # target_key1 = "RandomParameter"
-    # target_key2 = "IngressProtocol"
-    # example = parse('$[*]')
-    # output = [match.value['ParameterValue'] for match in example.find(parameters_from_stack) if match.value['ParameterKey'] == target_key2][0]
-    # print(output)
-
-    # newlist = [expression for item in iterable if condition == True]
+    parameters = parse_parameters(stack.parameters)
+    data = convert_to_json(stack.template_path)
+    json_data = json.loads(data)
+    find_and_replace_refs(resources_parser, json_data, parameters)
