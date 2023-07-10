@@ -138,7 +138,8 @@ def convert_to_json(data_path):
         data_object = json.loads(template_data)
     template_file.close()
     json_object = json.dumps(data_object, indent=2, default=str)
-    return json_object
+    json_data = json.loads(json_object)
+    return json_data
 
 def parse_parameters(parameter_list):
     if parameter_list is None:
@@ -180,12 +181,46 @@ def find_and_replace_refs(parser, data, parameters):
         if param_value is not None:
             location_path.update(data, param_value)
 
-def find_and_replace_subs(parser, data, parameters):
-    locations = [str(match.full_path) for match in parser.find(data) if (isinstance(match.value, dict)) and "Fn::Sub" in match.value]
+def parse_location(json_full_path):
+    parts = json_full_path.split(".")
+    func = parts[-1]
+    parts.remove(func)
+    parent = ".".join(parts)
+    return(parent, func)
+
+def locate_all_to_replace(parser, data):
+    intrinsic_funcs = [
+    'Ref',
+    'Condition',
+    'Fn::Sub',
+    'Fn::Split',
+    'Fn::Select',
+    'Fn::Join',
+    'Fn::ImportValue',
+    'Fn::GetAZs',
+    'Fn::GetAtt',
+    'Fn::FindInMap',
+    'Fn::Cidr',
+    'Fn::Base64',
+    'Fn::And',
+    'Fn::Equals',
+    'Fn::If',
+    'Fn::Not',
+    'Fn::Or'
+    ]
+    locations = []
+    for func in intrinsic_funcs:
+        loc = [str(match.full_path) for match in parser.find(data) if (isinstance(match.value, (dict, list, str)) and str(match.path) == func)]
+        locations.extend(loc)
+    locations.sort(key=lambda x: len(x), reverse=True)
+    return locations
+
 
 def main(stack):
     resources_parser = parse("$.Resources..*")
     parameters = parse_parameters(stack.parameters)
-    data = convert_to_json(stack.template_path)
-    json_data = json.loads(data)
-    find_and_replace_refs(resources_parser, json_data, parameters)
+    json_data = convert_to_json(stack.template_path)
+    # find_and_replace_refs(resources_parser, json_data, parameters)
+    all_parser = parse("$.*..*")
+    locations = locate_all_to_replace(all_parser, json_data)
+    print(locations)
