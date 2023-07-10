@@ -170,6 +170,21 @@ def clean_location(location):
             output = output + "." + part
     return output
 
+def process_template(location, data, parameters):
+    parsed_location = parse_location(location)
+    loc = parsed_location[0]
+    action = parsed_location[1]
+    safe_loc = clean_location(loc)
+    safe_path = parse(safe_loc)
+    current = parse(clean_location(location)).find(data)[0].value
+    if action == "Ref":
+        replace_ref(safe_path, data, parameters, current)
+
+def replace_ref(json_path, data, parameters, param_key):
+    value = get_param_value(parameters, param_key)
+    if value is not None:
+        json_path.update(data, value)
+
 def find_and_replace_refs(parser, data, parameters):
     locations = [str(match.full_path) for match in parser.find(data) if (isinstance(match.value, dict)) and "Ref" in match.value]
     for location in locations:
@@ -220,7 +235,8 @@ def main(stack):
     resources_parser = parse("$.Resources..*")
     parameters = parse_parameters(stack.parameters)
     json_data = convert_to_json(stack.template_path)
-    # find_and_replace_refs(resources_parser, json_data, parameters)
     all_parser = parse("$.*..*")
     locations = locate_all_to_replace(all_parser, json_data)
-    print(locations)
+    for location in locations:
+        process_template(location, json_data, parameters)
+    print(json_data)
