@@ -179,22 +179,96 @@ def process_template(location, data, parameters):
     current = parse(clean_location(location)).find(data)[0].value
     if action == "Ref":
         replace_ref(safe_path, data, parameters, current)
+    elif action == "Fn::Split":
+        replace_split(safe_path, data, current)
+    elif action == "Fn::Select":
+        replace_select(safe_path, data, current)
+    elif action == "Fn::Join":
+        replace_join(safe_path, data, current)
+    elif action == "Fn::FindInMap":
+        replace_findinmap(safe_path, data, current)
 
 def replace_ref(json_path, data, parameters, param_key):
     value = get_param_value(parameters, param_key)
     if value is not None:
         json_path.update(data, value)
 
-def find_and_replace_refs(parser, data, parameters):
-    locations = [str(match.full_path) for match in parser.find(data) if (isinstance(match.value, dict)) and "Ref" in match.value]
-    for location in locations:
-        new_location = clean_location(location)
-        location_path = parse(new_location)
-        value = location_path.find(data)[0].value
-        param_name = value['Ref']
-        param_value = get_param_value(parameters, param_name)
-        if param_value is not None:
-            location_path.update(data, param_value)
+def replace_split(json_path, data, input):
+    proceed = False
+    if isinstance(input[0], str) and isinstance(input[1], str):
+        proceed = True
+    if proceed:
+        delimiter = input[0]
+        input_string = input[1]
+        value = input_string.split(str(delimiter))
+        json_path.update(data, value)
+
+def replace_select(json_path, data, input):
+    proceed = False
+    if isinstance(input[0], int) and isinstance(input[1], list):
+        proceed = True
+    if proceed:
+        index = input[0]
+        input_list = input[1]
+        value = input_list[index]
+        json_path.update(data, value)
+
+def replace_join(json_path, data, input):
+    proceed = False
+    if isinstance(input[0], str) and isinstance(input[1], list):
+        proceed = True
+    if proceed:
+        delimiter = input[0]
+        input_list = input[1]
+        value = delimiter.join(input_list)
+        json_path.update(data, value)
+
+def replace_findinmap(json_path, data, input):
+    proceed = False
+    if isinstance(input, list) and len(input) == 3:
+        proceed = True
+    if proceed:
+        parser_string = "$.Mappings"
+        for level in input:
+            parser_string = ".".join((parser_string, level))
+        value = parse(parser_string).find(data)[0].value
+        json_path.update(data, value)
+
+def replace_condition(json_path, data, input):
+    pass
+
+def replace_sub(json_path, data, input):
+    pass
+
+def replace_importvalue(json_path, data, input):
+    pass
+
+def replace_getazs(json_path, data, input):
+    pass
+
+def replace_getatt(json_path, data, input):
+    pass
+
+def replace_cidr(json_path, data, input):
+    pass
+
+def replace_base64(json_path, data, input):
+    pass
+
+def replace_and(json_path, data, input):
+    pass
+
+def replace_equals(json_path, data, input):
+    pass
+
+def replace_if(json_path, data, input):
+    pass
+
+def replace_not(json_path, data, input):
+    pass
+
+def replace_or(json_path, data, input):
+    pass
 
 def parse_location(json_full_path):
     parts = json_full_path.split(".")
