@@ -3,6 +3,7 @@ import os
 import sys
 import yaml
 from jsonpath_ng.ext import parse
+import base64
 
 # Instrisic function classes
 class Ref(object):
@@ -187,7 +188,22 @@ def process_template(location, data, parameters):
         replace_join(safe_path, data, current)
     elif action == "Fn::FindInMap":
         replace_findinmap(safe_path, data, current)
+    elif action == "Fn::Base64":
+        replace_base64(safe_path, data, current)
+    elif action == "Fn::Equals":
+        replace_equals(safe_path, data, current)
+    elif action == "Fn::Not":
+        replace_not(safe_path, data, current)
+    elif action == "Fn::And":
+        replace_and(safe_path, data, current)
+    elif action == "Fn::Or":
+        replace_or(safe_path, data, current)
+    elif action == "Condition":
+        replace_condition(safe_path, data, current)
+    elif action == "Fn::If":
+        replace_if(safe_path, data, current)
 
+#TODO - Set reference evaluation for AWS pseudo-parameters
 def replace_ref(json_path, data, parameters, param_key):
     value = get_param_value(parameters, param_key)
     if value is not None:
@@ -234,8 +250,17 @@ def replace_findinmap(json_path, data, input):
         value = parse(parser_string).find(data)[0].value
         json_path.update(data, value)
 
+def get_condition_value(data, input):
+    parser_string = ".".join(("$.Conditions", input))
+    value = parse(parser_string).find(data)[0].value
+    return value
+
+#TODO - Condition logic isn't straightforward. Might have to loop a few times
 def replace_condition(json_path, data, input):
-    pass
+    if isinstance(input, str):
+        value = get_condition_value(data, input)
+        if type(value) is bool:
+            json_path.update(data, value)
 
 def replace_sub(json_path, data, input):
     pass
@@ -253,22 +278,87 @@ def replace_cidr(json_path, data, input):
     pass
 
 def replace_base64(json_path, data, input):
-    pass
+    proceed = False
+    if isinstance(input, str):
+        proceed = True
+    if proceed:
+        utf8_string = input.encode("utf-8")
+        value = base64.b64encode(utf8_string).decode("utf-8")
+        json_path.update(data, value)
 
 def replace_and(json_path, data, input):
-    pass
+    proceed = False
+    if isinstance(input, list) and len(input) >= 2 and len(input) <= 10:
+        all_bool = True
+        for item in input:
+            if type(item) is not bool:
+                all_bool = False
+                break
+        proceed = all_bool
+    if proceed:
+        value = True
+        for item in input:
+            if item is False:
+                value = False
+                break
+        json_path.update(data, value)
 
 def replace_equals(json_path, data, input):
-    pass
+    proceed = False
+    if isinstance(input, list) and len(input) == 2:
+        if type(input[0]) == type(input[1]):
+            proceed = True
+    if proceed:
+        if input[0] == input[1]:
+            value = True
+        else:
+            value = False
+        json_path.update(data, value)
 
+#TODO - set up way to remove property if AWS::NoValue is provided
+# https://stackoverflow.com/questions/16279212/how-to-use-dot-notation-for-dict-in-python
 def replace_if(json_path, data, input):
-    pass
+    proceed = False
+    if isinstance(input, list):
+        proceed = True
+    if proceed:
+        condition = None
+        if isinstance(input[0], bool):
+            condition = input[0]
+        elif isinstance(input[0], str):
+            condition = get_condition_value(data, input[0])
+        if condition is True:
+            value = input[1]
+        elif condition is False:
+            value = input[2]
+        if isinstance(condition, bool):
+            json_path.update(data, value)
 
 def replace_not(json_path, data, input):
-    pass
+    proceed = False
+    if isinstance(input, list) and len(input) == 1:
+        if isinstance(input[0], bool):
+            proceed = True
+    if proceed:
+        value = not input[0]
+        json_path.update(data, value)
 
 def replace_or(json_path, data, input):
-    pass
+    proceed = False
+    if isinstance(input, list) and len(input) >= 2 and len(input) <= 10:
+        all_bool = True
+        for item in input:
+            if type(item) is not bool:
+                all_bool = False
+                break
+        proceed = all_bool
+    if proceed:
+        value = False
+        for item in input:
+            if item is True:
+                value = True
+                break
+        json_path.update(data, value)
 
 def parse_location(json_full_path):
     parts = json_full_path.split(".")
