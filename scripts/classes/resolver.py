@@ -394,13 +394,17 @@ def locate_all_to_replace(parser, data):
     locations.sort(key=lambda x: len(x), reverse=True)
     return locations
 
+def process_values(parser, data, parameters):
+    locations = locate_all_to_replace(parser, data)
+    for location in locations:
+        process_template(location, data, parameters)
 
 def main(stack):
     resources_parser = parse("$.Resources..*")
     parameters = parse_parameters(stack.parameters)
     json_data = convert_to_json(stack.template_path)
     all_parser = parse("$.*..*")
-    locations = locate_all_to_replace(all_parser, json_data)
-    for location in locations:
-        process_template(location, json_data, parameters)
+    # Process data multiple times to process previously unrendered data
+    for x in range(0, 10):
+        process_values(all_parser, json_data, parameters)
     print(json_data)
