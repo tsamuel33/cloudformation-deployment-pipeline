@@ -7,6 +7,14 @@ Parameters:
     Type: String
     Description: Doesn't actually do anything
     Default: "default"
+  IngressProtocol:
+    Type: Number
+    Description: Protocol Number
+    Default: 6
+  Prefix:
+    Type: String
+    Description: Prefix for security group name
+    Default: "Travis"
   # DefaultParameter:
   #   Type: String
   #   Description: Doesn't actually do anything
@@ -15,15 +23,106 @@ Parameters:
   #   Type: String
   #   Description: Doesn't actually do anything
 
-Resources:
-  WaitConditionHandler:
-    Type: 'AWS::CloudFormation::WaitConditionHandle'
-    Properties: {}
+Mappings:
+  ExampleMap:
+    Level1:
+      Value: hello
 
-  # ADQPCreateApiKey:
-  #   Type: AWS::ApiGateway::ApiKey
+Conditions:
+  EqualsExample: !Equals [ !Ref RandomParameter, "TBD" ]
+  NotConditionExample: !Not [!Condition EqualsExample]
+  OrExample: !Or [!Condition EqualsExample, !Equals [!Ref IngressProtocol, "-1"]]
+  AndExample: !And [!Condition EqualsExample, !Equals [!Ref IngressProtocol, "-1"]]
+
+Resources:
+  # WaitConditionHandler:
+  #   Type: 'AWS::CloudFormation::WaitConditionHandle'
+  #   Properties: {}
+
+  # CloudFormationReadOnlyRole:
+  #   Type: AWS::IAM::Role
   #   Properties:
-  #     Name: !Join ["", [!Sub "travis", {"Ref": "AWS::StackName"}, "-create-apikey"]]
-  #     Description: "CloudFormation API Key V1"
-  #     Enabled: true
-  #     GenerateDistinctId: false
+  #     # RoleName: 'CloudFormationReadOnlyRole'
+  #     Description: Cloud Formation Read-Only Role
+  #     AssumeRolePolicyDocument:
+  #       Version: 2012-10-17
+  #       Statement:
+  #         - Effect: Allow
+  #           Principal:
+  #             Federated:
+  #               - !Sub 'arn:aws:iam::${AWS::AccountId}:saml-provider/provider'
+  #           Action: 'sts:AssumeRoleWithSAML'
+  #           Condition:
+  #             StringEquals:
+  #               'SAML:aud': 'https://signin.aws.amazon.com/saml'
+  #     Tags:
+  #       - Key: "ExtraKey"
+  #         Value: "ExtraValue"
+
+  # # InternetGateway:
+  # #   Type: AWS::EC2::InternetGateway
+  # #   Properties:
+  # #     Tags:
+  # #       - Key: Name
+  # #         Value: !Sub ${ManagedResourcePrefix}-InternetGateway
+  # #       - Key: Network
+  # #         Value: Public
+
+  # PublicSubnetRoute:
+  #   Type: AWS::EC2::Route
+  #   Properties:
+  #     RouteTableId: rtb-aldkjfalkdfjla
+  #     DestinationCidrBlock: 0.0.0.0/0
+  #     GatewayId: !Ref RandomParameter
+
+  DefaultSecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      VpcId: !Ref RandomParameter
+      GroupName: !Sub
+        - ${Alt}DefaultSecurityGroup-${Suffix}
+        - Alt: !Ref Prefix
+          Suffix:
+            Ref: RandomParameter
+      GroupDescription: 'Test Checkov'
+      SecurityGroupIngress: []
+      SecurityGroupEgress: []
+      Tags:
+      - Key: "secops:tags:managed_by"
+        Value: "AWS Managed Security Pipeline"
+  AllowOutboundTrafficToLoopback:
+    Type: 'AWS::EC2::SecurityGroupEgress'
+    Properties:
+      GroupId: !Ref DefaultSecurityGroup
+      CidrIp: 10.0.0.0/8
+      IpProtocol: -1
+      Description: 'Allow outbound traffic to Loopback address only'
+  AllowInboundTrafficFromLoopback:
+    Type: 'AWS::EC2::SecurityGroupIngress'
+    Properties:
+      GroupId: !Ref DefaultSecurityGroup
+      IpProtocol: !Ref IngressProtocol
+      CidrIp: 0.0.0.0/0
+      FromPort: 443
+      ToPort: 443
+      Description: 'Allow inbound traffic from Loopback address only'
+
+Outputs:
+  SplitSelectExample:
+    Value: !Select [0, !Split [ ',', "first,second,third" ]]
+  JoinExample:
+    Value: !Join [ "::", [AWS, Region]]
+  ImportValueExample:
+    Value: !ImportValue FakeValueToImport
+  GetAZsExample:
+    Value: !Select [0, !GetAZs "us-east-1"]
+  GetAttExample:
+    Value: !GetAtt DefaultSecurityGroup.GroupId
+  FindInMapExample:
+    Value: !FindInMap [ExampleMap, Level1, Value]
+  CidrExample:
+    Value: !Cidr ["10.0.0.0/8", 1, 5]
+  Base64Example:
+    Value: !Base64 hello
+  IfExample:
+    Value: !If [EqualsExample, !Ref RandomParameter, !Ref IngressProtocol]

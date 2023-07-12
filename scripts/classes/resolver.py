@@ -4,6 +4,8 @@ import sys
 import yaml
 from jsonpath_ng.ext import parse
 import base64
+import ipaddress
+import boto3
 
 # Instrisic function classes
 class Ref(object):
@@ -202,6 +204,8 @@ def process_template(location, data, parameters):
         replace_condition(safe_path, data, current)
     elif action == "Fn::If":
         replace_if(safe_path, data, current)
+    elif action == "Fn::Cidr":
+        replace_cidr(safe_path, data, current)
 
 #TODO - Set reference evaluation for AWS pseudo-parameters
 def replace_ref(json_path, data, parameters, param_key):
@@ -275,7 +279,17 @@ def replace_getatt(json_path, data, input):
     pass
 
 def replace_cidr(json_path, data, input):
-    pass
+    proceed = False
+    if isinstance(input, list):
+        if len(input) == 3:
+            proceed = True
+    if proceed:
+        network = ipaddress.ip_network(input[0])
+        max = network.max_prefixlen
+        mask = max - int(input[2])
+        subnet_obj = list(network.subnets(new_prefix=mask))
+        value = [subnet_obj[count].exploded for count in range(0, int(input[1]))]
+        json_path.update(data, value)
 
 def replace_base64(json_path, data, input):
     proceed = False
@@ -400,11 +414,13 @@ def process_values(parser, data, parameters):
         process_template(location, data, parameters)
 
 def main(stack):
+    account_number = ""
+    region = ""
     resources_parser = parse("$.Resources..*")
     parameters = parse_parameters(stack.parameters)
     json_data = convert_to_json(stack.template_path)
     all_parser = parse("$.*..*")
     # Process data multiple times to process previously unrendered data
-    for x in range(0, 10):
+    for x in range(0, 3):
         process_values(all_parser, json_data, parameters)
     print(json_data)
