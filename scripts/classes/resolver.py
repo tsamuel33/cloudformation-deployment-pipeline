@@ -5,7 +5,13 @@ import yaml
 from jsonpath_ng.ext import parse
 import base64
 import ipaddress
+import logging
+from pathlib import Path
 import boto3
+from botocore.exceptions import ClientError
+
+# Set up logger
+logger = logging.getLogger(Path(__file__).name)
 
 # Instrisic function classes
 class Ref(object):
@@ -173,7 +179,7 @@ def clean_location(location):
             output = output + "." + part
     return output
 
-def process_template(location, data, parameters, region, partition, account_number, stack_name):
+def process_template(location, data, parameters, region, partition, account_number, stack_name, az_list, cf_exports):
     parsed_location = parse_location(location)
     loc = parsed_location[0]
     action = parsed_location[1]
@@ -206,6 +212,10 @@ def process_template(location, data, parameters, region, partition, account_numb
         replace_if(safe_path, data, current)
     elif action == "Fn::Cidr":
         replace_cidr(safe_path, data, current)
+    elif action == "Fn::GetAZs":
+        replace_getazs(safe_path, data, az_list)
+    elif action == "Fn::ImportValue":
+        replace_importvalue(safe_path, data, current, cf_exports)
 
 def replace_ref(json_path, data, parameters, param_key, region, partition, account_number, stack_name):
     if param_key == "AWS::Region":
@@ -275,21 +285,37 @@ def get_condition_value(data, input):
     value = parse(parser_string).find(data)[0].value
     return value
 
-#TODO - Condition logic isn't straightforward. Might have to loop a few times
 def replace_condition(json_path, data, input):
     if isinstance(input, str):
         value = get_condition_value(data, input)
         if type(value) is bool:
             json_path.update(data, value)
 
+def get_exported_value(exports, export_name):
+    try:
+        value = exports[export_name]
+    except KeyError:
+        value = None
+    return value
+
 def replace_sub(json_path, data, input):
     pass
 
-def replace_importvalue(json_path, data, input):
-    pass
+def replace_importvalue(json_path, data, input, exports):
+    proceed = False
+    if exports is not None:
+        proceed = True
+    if proceed:
+        value = get_exported_value(exports, input)
+        if value is not None:
+            json_path.update(data, value)
 
-def replace_getazs(json_path, data, input):
-    pass
+def replace_getazs(json_path, data, azs):
+    proceed = False
+    if azs is not None:
+        proceed = True
+    if proceed:
+        json_path.update(data, azs)
 
 def replace_getatt(json_path, data, input):
     pass
@@ -424,21 +450,60 @@ def locate_all_to_replace(parser, data):
     locations.sort(key=lambda x: len(x), reverse=True)
     return locations
 
-def process_values(parser, data, parameters, region, partition, account_number, stack_name):
+def process_values(parser, data, parameters, region, partition, account_number, stack_name, az_list, cf_exports):
     locations = locate_all_to_replace(parser, data)
     for location in locations:
-        process_template(location, data, parameters, region, partition, account_number, stack_name)
+        process_template(location, data, parameters, region, partition, account_number, stack_name, az_list, cf_exports)
+
+def get_azs(region):
+    try:
+        ec2 = boto3.client('ec2', region_name=region)
+        response = ec2.describe_availability_zones(
+            Filters=[
+                {
+                    'Name': 'region-name',
+                    'Values': [region]
+                },
+                {
+                    'Name': 'zone-type',
+                    'Values': ['availability-zone']
+                }
+            ]
+        )
+        output = [zone['ZoneName'] for zone in response['AvailabilityZones']]
+        return output
+    except ClientError as err:
+        logger.info("Unable to get availability zones due to: {}".format(err.response['Error']['Message']))
+        return None
+
+def get_cf_exports(region):
+    try:
+        output = {}
+        cf = boto3.client('cloudformation', region_name=region)
+        paginator = cf.get_paginator('list_exports')
+        iterator = paginator.paginate()
+        for page in iterator:
+            exports = page['Exports']
+            for export in exports:
+                output[export['Name']] = export['Value']
+        return output
+    except ClientError as err:
+        logger.info("Unable to get export values due to: {}".format(err.response['Error']['Message']))
+        return None
+
 
 def main(stack):
     account_number = stack.role_arn.split(":")[4]
     partition = stack.role_arn.split(":")[1]
     region = stack.template_path.parts[-4]
     stack_name = stack.stack_name
+    az_list = get_azs(region)
+    cf_exports = get_cf_exports(region)
     # resources_parser = parse("$.Resources..*")
     parameters = parse_parameters(stack.parameters)
     json_data = convert_to_json(stack.template_path)
     all_parser = parse("$.*..*")
     # Process data multiple times to process previously unrendered data
     for x in range(0, 3):
-        process_values(all_parser, json_data, parameters, region, partition, account_number, stack_name)
+        process_values(all_parser, json_data, parameters, region, partition, account_number, stack_name, az_list, cf_exports)
     print(json_data)
