@@ -173,7 +173,7 @@ def clean_location(location):
             output = output + "." + part
     return output
 
-def process_template(location, data, parameters):
+def process_template(location, data, parameters, region, partition, account_number, stack_name):
     parsed_location = parse_location(location)
     loc = parsed_location[0]
     action = parsed_location[1]
@@ -181,7 +181,7 @@ def process_template(location, data, parameters):
     safe_path = parse(safe_loc)
     current = parse(clean_location(location)).find(data)[0].value
     if action == "Ref":
-        replace_ref(safe_path, data, parameters, current)
+        replace_ref(safe_path, data, parameters, current, region, partition, account_number, stack_name)
     elif action == "Fn::Split":
         replace_split(safe_path, data, current)
     elif action == "Fn::Select":
@@ -207,9 +207,25 @@ def process_template(location, data, parameters):
     elif action == "Fn::Cidr":
         replace_cidr(safe_path, data, current)
 
-#TODO - Set reference evaluation for AWS pseudo-parameters
-def replace_ref(json_path, data, parameters, param_key):
-    value = get_param_value(parameters, param_key)
+def replace_ref(json_path, data, parameters, param_key, region, partition, account_number, stack_name):
+    if param_key == "AWS::Region":
+        value = region
+    elif param_key == "AWS::AccountId":
+        value = account_number
+    elif param_key == "AWS::Partition":
+        value = partition
+    elif param_key == "AWS::StackName":
+        value = stack_name
+    elif param_key == "AWS::StackId":
+        prefix = ":".join(('arn', partition, 'cloudformation', region, account_number, 'stack'))
+        value = "/".join((prefix, stack_name, 'placehol-der0-1234-5678-90abcdefghij'))
+    elif param_key == "AWS::URLSuffix":
+        if partition == "aws-cn":
+            value = "amazonaws.com.cn"
+        else:
+            value = "amazonaws.com"
+    else:
+        value = get_param_value(parameters, param_key)
     if value is not None:
         json_path.update(data, value)
 
@@ -408,19 +424,21 @@ def locate_all_to_replace(parser, data):
     locations.sort(key=lambda x: len(x), reverse=True)
     return locations
 
-def process_values(parser, data, parameters):
+def process_values(parser, data, parameters, region, partition, account_number, stack_name):
     locations = locate_all_to_replace(parser, data)
     for location in locations:
-        process_template(location, data, parameters)
+        process_template(location, data, parameters, region, partition, account_number, stack_name)
 
 def main(stack):
-    account_number = ""
-    region = ""
-    resources_parser = parse("$.Resources..*")
+    account_number = stack.role_arn.split(":")[4]
+    partition = stack.role_arn.split(":")[1]
+    region = stack.template_path.parts[-4]
+    stack_name = stack.stack_name
+    # resources_parser = parse("$.Resources..*")
     parameters = parse_parameters(stack.parameters)
     json_data = convert_to_json(stack.template_path)
     all_parser = parse("$.*..*")
     # Process data multiple times to process previously unrendered data
     for x in range(0, 3):
-        process_values(all_parser, json_data, parameters)
+        process_values(all_parser, json_data, parameters, region, partition, account_number, stack_name)
     print(json_data)
