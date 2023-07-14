@@ -529,11 +529,19 @@ def main(stack):
     partition = stack.role_arn.split(":")[1]
     region = stack.template_path.parts[-4]
     stack_name = stack.stack_name
-    az_list = get_azs(region)
-    cf_exports = get_cf_exports(region)
     parameters = parse_parameters(stack.parameters)
     json_data = convert_to_json(stack.template_path)
     all_parser = parse("$.*..*")
+    json_locations = locate_all_to_replace(all_parser, json_data)
+    actions = [x.split(".")[-1] for x in json_locations]
+    if "Fn::GetAZs" in actions:
+        az_list = get_azs(region)
+    else:
+        az_list = None
+    if "Fn::ImportValue" in actions:
+        cf_exports = get_cf_exports(region)
+    else:
+        cf_exports = None
     # Process data multiple times to process previously unrendered data
     for x in range(0, 3):
         process_values(all_parser, json_data, parameters, region, partition, account_number, stack_name, az_list, cf_exports)
