@@ -9,6 +9,7 @@ import logging
 from pathlib import Path
 import boto3
 from botocore.exceptions import ClientError
+import re
 
 # Set up logger
 logger = logging.getLogger(Path(__file__).name)
@@ -188,6 +189,8 @@ def process_template(location, data, parameters, region, partition, account_numb
     current = parse(clean_location(location)).find(data)[0].value
     if action == "Ref":
         replace_ref(safe_path, data, parameters, current, region, partition, account_number, stack_name)
+    elif action == "Fn::Sub":
+        replace_sub(safe_path, data, parameters, current, region, partition, account_number, stack_name)
     elif action == "Fn::Split":
         replace_split(safe_path, data, current)
     elif action == "Fn::Select":
@@ -217,7 +220,7 @@ def process_template(location, data, parameters, region, partition, account_numb
     elif action == "Fn::ImportValue":
         replace_importvalue(safe_path, data, current, cf_exports)
 
-def replace_ref(json_path, data, parameters, param_key, region, partition, account_number, stack_name):
+def get_ref_value(parameters, param_key, region, partition, account_number, stack_name):
     if param_key == "AWS::Region":
         value = region
     elif param_key == "AWS::AccountId":
@@ -236,6 +239,10 @@ def replace_ref(json_path, data, parameters, param_key, region, partition, accou
             value = "amazonaws.com"
     else:
         value = get_param_value(parameters, param_key)
+    return value
+
+def replace_ref(json_path, data, parameters, param_key, region, partition, account_number, stack_name):
+    value = get_ref_value(parameters, param_key, region, partition, account_number, stack_name)
     if value is not None:
         json_path.update(data, value)
 
@@ -298,8 +305,33 @@ def get_exported_value(exports, export_name):
         value = None
     return value
 
-def replace_sub(json_path, data, input):
-    pass
+def replace_sub(json_path, data, parameters, input, region, partition, account_number, stack_name):
+    sub_reg = '(\\${)((?:AWS::)?\\w+)(})'
+    if isinstance(input, str):
+        instances = re.findall(sub_reg, input)
+        for instance in instances:
+            param_name = instance[1]
+            value = get_ref_value(parameters, param_name, region, partition, account_number, stack_name)
+            if value is not None:
+                pattern = "".join(('(\\${)(', instance[1], ')(})'))
+                input = re.sub(pattern, value, input, count=1)
+        json_path.update(data, input)
+    if isinstance(input, list):
+        output_string = input[0]
+        output_params = input[1]
+        instances = re.findall(sub_reg, output_string)
+        for instance in instances:
+            param_name = instance[1]
+            param_value = output_params[param_name]
+            if isinstance(param_value, (str, int)):
+                pattern = "".join(('(\\${)(', param_name, ')(})'))
+                output_string = re.sub(pattern, param_value, output_string)
+                del output_params[param_name]
+        if output_params == {}:
+            json_path.update(data, output_string)
+        else:
+            output = { "Fn::Sub" : [ output_string, output_params ] }
+            json_path.update(data, output)
 
 def replace_importvalue(json_path, data, input, exports):
     proceed = False
@@ -499,7 +531,6 @@ def main(stack):
     stack_name = stack.stack_name
     az_list = get_azs(region)
     cf_exports = get_cf_exports(region)
-    # resources_parser = parse("$.Resources..*")
     parameters = parse_parameters(stack.parameters)
     json_data = convert_to_json(stack.template_path)
     all_parser = parse("$.*..*")
