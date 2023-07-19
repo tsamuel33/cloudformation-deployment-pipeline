@@ -126,18 +126,16 @@ tags = [
 for tag in tags:
     add_yaml_constructor(tag)
 
-def create_test_file(filename, data):
-    with open(filename, "w") as file:
+def create_test_file(filepath, data):
+    region_dir = Path(filepath).parents[2]
+    validation_dir = region_dir / "rendered_templates"
+    template_name = filepath.stem
+    rendered_path = validation_dir / ".".join((template_name, "json"))
+    if not validation_dir.exists():
+        os.mkdir(validation_dir, mode=644)
+    with open(rendered_path, "w") as file:
         file.write(data)
         file.close()
-    # #Create file for testing
-    # parent = data_path.parent
-    # test_file_name = "".join((data_path.stem, "_guard", ".json"))
-    # test_file_path = parent / test_file_name
-    # create_test_file(test_file_path, json_object)
-
-def delete_test_file(file):
-    os.remove(file)
 
 def convert_to_json(data_path):
     with open(data_path, 'r') as template_file:
@@ -420,7 +418,25 @@ def replace_if(json_path, data, input):
         elif condition is False:
             value = input[2]
         if isinstance(condition, bool):
-            json_path.update(data, value)
+            if isinstance(value, dict):
+                if value["Ref"] == "AWS::NoValue":
+                    print("Remove this value")
+                    x = json_path.filter(lambda x: x=="AWS::NoValue", data)
+                    # print(x)
+                    # # x = json_path.find(data)
+                    # # for y in x:
+                    # #     if y.value:
+                    # #         print(y.path.index)
+                    # parts = str(json_path).split(".")
+                    # parts.remove('$')
+                    # field = ''
+                    # for entry in parts:
+                    #     field = field + "".join(("[", entry, "]"))
+                    # print(data[field])
+                else:
+                    json_path.update(data, value)
+            else:
+                json_path.update(data, value)
 
 def replace_not(json_path, data, input):
     proceed = False
@@ -532,17 +548,20 @@ def main(stack):
     parameters = parse_parameters(stack.parameters)
     json_data = convert_to_json(stack.template_path)
     all_parser = parse("$.*..*")
-    json_locations = locate_all_to_replace(all_parser, json_data)
-    actions = [x.split(".")[-1] for x in json_locations]
-    if "Fn::GetAZs" in actions:
-        az_list = get_azs(region)
-    else:
-        az_list = None
-    if "Fn::ImportValue" in actions:
-        cf_exports = get_cf_exports(region)
-    else:
-        cf_exports = None
+    # json_locations = locate_all_to_replace(all_parser, json_data)
+    # actions = [x.split(".")[-1] for x in json_locations]
+    # if "Fn::GetAZs" in actions:
+    #     az_list = get_azs(region)
+    # else:
+    #     az_list = None
+    # if "Fn::ImportValue" in actions:
+    #     cf_exports = get_cf_exports(region)
+    # else:
+    #     cf_exports = None
+    az_list = None
+    cf_exports = None
     # Process data multiple times to process previously unrendered data
     for x in range(0, 3):
         process_values(all_parser, json_data, parameters, region, partition, account_number, stack_name, az_list, cf_exports)
-    print(json_data)
+    json_string = json.dumps(json_data, indent=2, default=str)
+    create_test_file(stack.template_path, json_string)
