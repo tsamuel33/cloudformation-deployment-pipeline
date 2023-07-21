@@ -83,7 +83,7 @@ class AWSCloudFormationStack:
         self._cf = boto3.client('cloudformation', region_name=region)
         if self.size > 51200:
             self._upload_bucket = AWSS3UploadBucket(region, upload_bucket_name)
-        self.role_arn = "".join(("arn:aws:iam::", account_number, ":role/", execution_role_name))
+        self.role_arn = "".join(("arn:aws:iam::", str(account_number), ":role/", execution_role_name))
         self._termination_protection = protection
 
     # Rename logger so it's easier to identify the source when running
@@ -182,9 +182,8 @@ class AWSCloudFormationStack:
                 if y in temp_params:
                     paramValue = paramObj[y]
                     entry = {
-                            'ParameterKey': y,
-                            'ParameterValue': paramValue,
-                            'UsePreviousValue': False
+                            'ParameterKey': str(y),
+                            'ParameterValue': str(paramValue)
                         }
                     parameterlist.append(entry)
                     paramkeys.remove(y)
@@ -197,9 +196,8 @@ class AWSCloudFormationStack:
                 try:
                     default = temp_params[param]['Default']
                     entry = {
-                            'ParameterKey': param,
-                            'ParameterValue': default,
-                            'UsePreviousValue': False
+                            'ParameterKey': str(param),
+                            'ParameterValue': str(default)
                         }
                     parameterlist.append(entry)
                 except KeyError:
