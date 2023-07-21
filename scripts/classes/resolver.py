@@ -1,85 +1,103 @@
-import json
-import os
-import sys
-import yaml
-from jsonpath_ng.ext import parse
 import base64
 import ipaddress
+import json
 import logging
+import os
 from pathlib import Path
+import re
+import sys
+
 import boto3
 from botocore.exceptions import ClientError
-import re
+from jsonpath_ng.ext import parse
+import yaml
 
 # Set up logger
 logger = logging.getLogger(Path(__file__).name)
 
 # Instrisic function classes
 class Ref(object):
+    """YAML representation of the '!Ref' intrinsic function"""
     def __init__(self, data):
         self.data = data
 
 class Sub(object):
+    """YAML representation of the '!Sub' intrinsic function"""
     def __init__(self, data):
         self.data = data
 
 class Split(object):
+    """YAML representation of the '!Split' intrinsic function"""
     def __init__(self, data):
         self.data = data
 
 class Select(object):
+    """YAML representation of the '!Select' intrinsic function"""
     def __init__(self, data):
         self.data = data
 
 class Join(object):
+    """YAML representation of the '!Join' intrinsic function"""
     def __init__(self, data):
         self.data = data
 
 class ImportValue(object):
+    """YAML representation of the '!ImportValue' intrinsic function"""
     def __init__(self, data):
         self.data = data
 
 class GetAZs(object):
+    """YAML representation of the '!GetAZs' intrinsic function"""
     def __init__(self, data):
         self.data = data
 
 class GetAtt(object):
+    """YAML representation of the '!GetAtt' intrinsic function"""
     def __init__(self, data):
         self.data = data
 
 class FindInMap(object):
+    """YAML representation of the '!FindInMap' intrinsic function"""
     def __init__(self, data):
         self.data = data
 
 class Cidr(object):
+    """YAML representation of the '!Cidr' intrinsic function"""
     def __init__(self, data):
         self.data = data
 
 class Base64(object):
+    """YAML representation of the '!Base64' intrinsic function"""
     def __init__(self, data):
         self.data = data
     
 class And(object):
+    """YAML representation of the '!And' condition function"""
     def __init__(self, data):
         self.data = data
 
 class Equals(object):
+    """YAML representation of the '!Equals' condition function"""
     def __init__(self, data):
         self.data = data
 
 class If(object):
+    """YAML representation of the '!If' condition function"""
     def __init__(self, data):
         self.data = data
 
 class Not(object):
+    """YAML representation of the '!Not' condition function"""
     def __init__(self, data):
         self.data = data
 
 class Or(object):
+    """YAML representation of the '!Or' condition function"""
     def __init__(self, data):
         self.data = data
 
 class Condition(object):
+    """YAML representation of the '!Condition' condition function"""
     def __init__(self, data):
         self.data = data
 
@@ -135,6 +153,7 @@ def create_test_file(filepath, data):
         os.mkdir(validation_dir, mode=644)
     with open(rendered_path, "w") as file:
         file.write(data)
+        logger.info("Created test file: {}".format(rendered_path.as_posix()))
         file.close()
 
 def convert_to_json(data_path):
@@ -496,6 +515,7 @@ def process_values(parser, data, parameters, region, partition, account_number, 
         process_template(location, data, parameters, region, partition, account_number, stack_name, az_list, cf_exports)
 
 def get_azs(region):
+    logger.info("Getting availability zones in region: {}...".format(region))
     try:
         ec2 = boto3.client('ec2', region_name=region)
         response = ec2.describe_availability_zones(
@@ -517,6 +537,7 @@ def get_azs(region):
         return None
 
 def get_cf_exports(region):
+    logger.info("Getting exported values from CloudFormation...")
     try:
         output = {}
         cf = boto3.client('cloudformation', region_name=region)
@@ -540,18 +561,16 @@ def main(stack):
     parameters = parse_parameters(stack.parameters)
     json_data = convert_to_json(stack.template_path)
     all_parser = parse("$.*..*")
-    # json_locations = locate_all_to_replace(all_parser, json_data)
-    # actions = [x.split(".")[-1] for x in json_locations]
-    # if "Fn::GetAZs" in actions:
-    #     az_list = get_azs(region)
-    # else:
-    #     az_list = None
-    # if "Fn::ImportValue" in actions:
-    #     cf_exports = get_cf_exports(region)
-    # else:
-    #     cf_exports = None
-    az_list = None
-    cf_exports = None
+    json_locations = locate_all_to_replace(all_parser, json_data)
+    actions = [x.split(".")[-1] for x in json_locations]
+    if "Fn::GetAZs" in actions:
+        az_list = get_azs(region)
+    else:
+        az_list = None
+    if "Fn::ImportValue" in actions:
+        cf_exports = get_cf_exports(region)
+    else:
+        cf_exports = None
     # Process data multiple times to process previously unrendered data
     for x in range(0, 3):
         process_values(all_parser, json_data, parameters, region, partition, account_number, stack_name, az_list, cf_exports)
