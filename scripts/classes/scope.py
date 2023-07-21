@@ -2,6 +2,7 @@ import logging
 import subprocess
 from .mappings import Mappings
 from .configuration import Configuration
+from .stack import AWSCloudFormationStack
 from pathlib import Path
 from git import Repo
 from git.exc import GitCommandError
@@ -17,6 +18,7 @@ class PipelineScope:
     __remote = __repo.remote()
     __head_commit = __repo.head.commit
     deployment_dir = root_dir / "deployments"
+    cfn_guard_dir = root_dir / "rules" / "cfn-guard"
     tag_prefix = "cf-deployment"
     valid_template_suffixes = [
         ".yaml",
@@ -60,12 +62,18 @@ class PipelineScope:
         "error",
         "-r"
     ]
+    guard_commands = [
+        "cfn-guard",
+        "validate",
+        "-r",
+        cfn_guard_dir.as_posix()
+    ]
 
-    def __init__(self, branch) -> None:
+    def __init__(self, branch, environment) -> None:
         self.create_list = []
         self.update_list = []
         self.delete_list = []
-        self.environment = Configuration(branch).environment
+        self.environment = environment
         self.regions = self.get_regions()
         self.deploy_tag = "-".join((self.tag_prefix,branch))
         self.__last_deploy = self.get_last_deployment_commit(self.deploy_tag)
@@ -328,6 +336,95 @@ class PipelineScope:
         else:
             code = subprocess.run(self.lint_commands).returncode
         return code
+    
+    def cfn_guard_validate(self):
+        for template in self.create_list:
+            self.guard_commands.append("-d")
+            self.guard_commands.append(template.as_posix())
+        for template in self.update_list:
+            self.guard_commands.append("-d")
+            self.guard_commands.append(template.as_posix())
+        if self.guard_commands[-1] == self.cfn_guard_dir.as_posix():
+            logger.info("No templates in scope for validation.")
+            code = 0
+        else:
+            code = subprocess.run(self.guard_commands).returncode
+        return code
 
-    def deploy_templates(self):
-        pass
+    @staticmethod
+    def split_by_env(template_list):
+        all_env_templates = []
+        env_templates =[]
+        for template in template_list:
+            parts = template.parts
+            if parts[-3] == "all_envs":
+                all_env_templates.append(template)
+            else:
+                env_templates.append(template)
+        all_env_templates.sort()
+        env_templates.sort()
+        return (all_env_templates, env_templates)
+    
+    def deploy_templates(self, action, template_list, account_number, role_name, temp_env,
+                         check_period, stack_prefix, protection, upload_bucket_name):
+        logger.info("Performing {} action on {} templates...".format(action,temp_env))
+        success_target = len(template_list)
+        success_count = 0
+        for template in template_list:
+            stack = AWSCloudFormationStack(template, self.environment,
+                        account_number, role_name, check_period,
+                        stack_prefix, protection, upload_bucket_name)
+            outcome = stack.run_stack_actions(action)
+            if outcome == "SUCCESS":
+                success_count +=1
+            elif outcome == "FAILURE":
+                message = "{} of stack {}".format(action, stack.stack_name)+ \
+                    " has failed. Canceling pipeline..."
+                logger.error(message)
+                break
+        if success_count == success_target:
+            return "SUCCESS"
+        else:
+            return "FAILURE"
+
+    def prep_and_deploy(self, template_list, action, account_number, role_name,
+                        check_period, stack_prefix, protection, upload_bucket_name):
+        logger.info("Preparing for stack action: {}".format(action))
+        split_list = self.split_by_env(template_list)
+        result1 = self.deploy_templates(action, split_list[0], account_number, role_name, "all_envs",
+                                        check_period, stack_prefix, protection, upload_bucket_name)
+        if result1 == "SUCCESS":
+            result2 = self.deploy_templates(action, split_list[1], account_number, role_name, self.environment,
+                                            check_period, stack_prefix, protection, upload_bucket_name)
+        else:
+            result2 = "CANCELED"
+        if result1 == "SUCCESS" and result2 == "SUCCESS":
+            return "SUCCESS"
+        else:
+            return "FAILURE"
+
+    def deploy_scope(self, account_number, role_name, check_period=15,
+                     stack_prefix=None, protection=False,
+                     upload_bucket_name=None):
+        create_result = self.prep_and_deploy(self.create_list, "CREATE",
+                                             account_number, role_name,
+                                             check_period, stack_prefix,
+                                             protection, upload_bucket_name)
+        if create_result == "SUCCESS":
+            update_result = self.prep_and_deploy(self.update_list, "UPDATE",
+                                                 account_number, role_name,
+                                                 check_period, stack_prefix,
+                                                 protection, upload_bucket_name)
+        else:
+            update_result = "CANCELED"
+        if create_result == "SUCCESS" and update_result == "SUCCESS":
+            delete_result = self.prep_and_deploy(self.delete_list, "DELETE",
+                                                 account_number, role_name,
+                                                 check_period, stack_prefix,
+                                                 protection, upload_bucket_name)
+        else:
+            delete_result = "CANCELED"
+        if delete_result == "SUCCESS":
+            return "SUCCESS"
+        else:
+            return "FAILURE"
