@@ -166,13 +166,20 @@ def get_param_value(parameters, param_key):
         output = None
     return output
 
-# JSONPath is unable to find a path that has "::"" in it (i.e, Fn::Sub).
+def check_int(input):
+    try:
+        int(input)
+        return True
+    except ValueError:
+        return False
+
+# JSONPath is unable to find a path that has ":" in it (i.e, Fn::Sub).
 # Add quotations to the field name for the search to work.
 def clean_location(location):
     output = '$'
     parts = location.split(".")
     for part in parts:
-        if "::" in part:
+        if ":" in part or check_int(part):
             output = output + "." + '"{}"'.format(part)
         else:
             output = output + "." + part
@@ -279,15 +286,17 @@ def replace_findinmap(json_path, data, input):
     if isinstance(input, list) and len(input) == 3:
         proceed = True
     if proceed:
-        parser_string = "$.Mappings"
+        parser_string = "Mappings"
         for level in input:
             parser_string = ".".join((parser_string, level))
-        value = parse(parser_string).find(data)[0].value
+        clean_string = clean_location(parser_string)
+        value = parse(clean_string).find(data)[0].value
         json_path.update(data, value)
 
 def get_condition_value(data, input):
     parser_string = ".".join(("$.Conditions", input))
-    value = parse(parser_string).find(data)[0].value
+    clean_string = clean_location(parser_string)
+    value = parse(clean_string).find(data)[0].value
     return value
 
 def replace_condition(json_path, data, input):
@@ -401,8 +410,6 @@ def replace_equals(json_path, data, input):
             value = False
         json_path.update(data, value)
 
-#TODO - set up way to remove property if AWS::NoValue is provided
-# https://stackoverflow.com/questions/16279212/how-to-use-dot-notation-for-dict-in-python
 def replace_if(json_path, data, input):
     proceed = False
     if isinstance(input, list):
@@ -418,25 +425,10 @@ def replace_if(json_path, data, input):
         elif condition is False:
             value = input[2]
         if isinstance(condition, bool):
-            if isinstance(value, dict):
+            json_path.update(data, value)
+            if isinstance(value, dict) and "Ref" in value.keys():
                 if value["Ref"] == "AWS::NoValue":
-                    print("Remove this value")
-                    x = json_path.filter(lambda x: x=="AWS::NoValue", data)
-                    # print(x)
-                    # # x = json_path.find(data)
-                    # # for y in x:
-                    # #     if y.value:
-                    # #         print(y.path.index)
-                    # parts = str(json_path).split(".")
-                    # parts.remove('$')
-                    # field = ''
-                    # for entry in parts:
-                    #     field = field + "".join(("[", entry, "]"))
-                    # print(data[field])
-                else:
-                    json_path.update(data, value)
-            else:
-                json_path.update(data, value)
+                    json_path.filter(lambda x: x != 'AWS::NoValue', data)
 
 def replace_not(json_path, data, input):
     proceed = False
