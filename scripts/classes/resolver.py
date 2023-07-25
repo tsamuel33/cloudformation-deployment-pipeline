@@ -155,6 +155,7 @@ def create_test_file(filepath, data):
         file.write(data)
         logger.info("Created test file: {}".format(rendered_path.as_posix()))
         file.close()
+    return rendered_path
 
 def convert_to_json(data_path):
     with open(data_path, 'r') as template_file:
@@ -553,7 +554,7 @@ def get_cf_exports(region):
         return None
 
 
-def main(stack):
+def resolve_template(stack):
     account_number = stack.role_arn.split(":")[4]
     partition = stack.role_arn.split(":")[1]
     region = stack.template_path.parts[-4]
@@ -575,4 +576,5 @@ def main(stack):
     for x in range(0, 3):
         process_values(all_parser, json_data, parameters, region, partition, account_number, stack_name, az_list, cf_exports)
     json_string = json.dumps(json_data, indent=2, default=str)
-    create_test_file(stack.template_path, json_string)
+    rendered_template = create_test_file(stack.template_path, json_string)
+    return rendered_template
