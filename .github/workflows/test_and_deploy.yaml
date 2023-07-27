@@ -1,6 +1,8 @@
 name: Test and Deploy CloudFormation Templates
 on:
   push:
+    # paths:
+    #   - 'deployments/*'
 permissions:
       id-token: write
       contents: read
@@ -13,63 +15,60 @@ jobs:
       - name: Get Secret Type
         id: secret_type
         run: |
-          SETTING=$(python -m scripts.env_setup --branch dev --github_env_var github_secret_type)
+          SETTING=$(python -m scripts.env_setup --branch ${{ github.ref_name }} --github_env_var github_secret_type)
           echo "github_secret_type=${SETTING}" >> "$GITHUB_OUTPUT"
       - name: Get Validation Type
         id: validation_type
         run: |
-          SETTING=$(python -m scripts.env_setup --branch dev --github_env_var policy_as_code_provider)
+          SETTING=$(python -m scripts.env_setup --branch ${{ github.ref_name }} --github_env_var policy_as_code_provider)
           echo "policy_as_code_provider=${SETTING}" >> "$GITHUB_OUTPUT"
       - name: Get Secret Name
         id: secret_name
         run: |
-          SETTING=$(python -m scripts.env_setup --branch dev --github_env_var account_number_secret_name)
+          SETTING=$(python -m scripts.env_setup --branch ${{ github.ref_name }} --github_env_var account_number_secret_name)
           echo "account_number_secret_name=${SETTING}" >> "$GITHUB_OUTPUT"
-      # - name: Get Branch Type
-      #   id: branch_type
-      #   run: |
-      #     SETTING=$(python -m scripts.env_setup --branch dev --github_env_var policy_as_code_provider)
-      #     echo "policy_as_code_provider=${SETTING}" >> "$GITHUB_OUTPUT"
+      - name: Get Branch Type
+        id: branch_type
+        run: |
+          SETTING=$(python -m scripts.env_setup --branch ${{ github.ref_name }} --github_env_var branch_type)
+          echo "branch_type=${SETTING}" >> "$GITHUB_OUTPUT"
     outputs:
       github_secret_type: ${{ steps.secret_type.outputs.github_secret_type }}
       policy_as_code_provider: ${{ steps.validation_type.outputs.policy_as_code_provider }}
       account_secret_name: ${{ steps.secret_name.outputs.account_number_secret_name }}
-  Test:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v3
-      - name: Install cfn-guard
-        run: |
-          curl --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/aws-cloudformation/cloudformation-guard/main/install-guard.sh | sh
-          export PATH=~/.guard/bin:$PATH
-          cfn-guard -V
-      # - name: Install Linting Dependencies
-      #   run: pip install cfn-lint GitPython jsonpath-ng --trusted-host files.pythonhosted.org
-      # - name: Lint Templates
-      #   run: python -m scripts.deploy --branch ${{ github.ref_name }} --account_number ${{ secrets.$Secret_Name }} --job lint
-      #   env:
-      #     Secret_Name: ${{ needs.SetConfigVariables.outputs.github_secret_type }}
-  # TestOutput:
+      branch_type: ${{ steps.branch_type.outputs.branch_type }}
+  # Test:
   #   runs-on: ubuntu-latest
   #   needs: SetConfigVariables
+  #   env:
+  #     Secret_Name: ${{ needs.SetConfigVariables.outputs.github_secret_type }}
   #   steps:
-  #     - env:
-  #         OUTPUT1: ${{ needs.SetConfigVariables.outputs.github_secret_type }}
-  #         VALIDATION_PROVIDER: ${{ needs.SetConfigVariables.outputs.policy_as_code_provider }}
-  #       run: echo "$OUTPUT1 $VALIDATION_PROVIDER"
+  #     - name: Checkout
+  #       uses: actions/checkout@v3
+  #     - name: Install Linting Dependencies
+  #       run: pip install cfn-lint GitPython jsonpath-ng
+  #     - name: Lint Templates
+  #       run: python -m scripts.deploy --branch ${{ github.ref_name }} --account_number ${{ secrets.$Secret_Name }} --job lint
+  #     - name: Install cfn-guard
+  #       if: ${{ needs.SetConfigVariables.outputs.policy_as_code_provider == 'guard' }}
+  #       run: |
+  #         curl --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/aws-cloudformation/cloudformation-guard/main/install-guard.sh | sh
+  #         export PATH=~/.guard/bin:$PATH
+  #         cfn-guard -V
+  #     - name: Install Open Policy Agent
+  #       if: ${{ needs.SetConfigVariables.outputs.policy_as_code_provider == 'opa' }}
+  #       run: |
+  #         curl -L -o opa https://openpolicyagent.org/downloads/v0.55.0/opa_linux_amd64_static
+  #         chmod 755 ./opa
+  #         ./opa version
+  #     - name: Policy as Code Validation
+  #       if: ${{ needs.SetConfigVariables.outputs.policy_as_code_provider != 'None' }}
+  #       run: python -m scripts.deploy --branch ${{ github.ref_name }} --account_number 123456789012 --job validate
+      
   # Deploy:
   #   runs-on: ubuntu-latest
   #   steps:
   #     - name: Checkout
   #       uses: actions/checkout@v3
-  #     # - name: Set GitHub Environment Variables
-  #     #   run: |
-  #     #     python
-  #     # - name: Install cfn-lint
-  #     #   run: pip install --quiet
-  #     # - name: Lint Templates
-  #     #   run: python -m scripts.deploy --branch dev --account_number 123456789012 --job lint
-      
-  #     # - name: Validate
-  #     #   run: cfn-guard validate -r rules/cfn-guard/managed_security_pipeline_checks.guard -d deployments/us-east-1/all_envs/templates/example.template
+  #     - name: Deploy Templates
+  #       run: python -m scripts.deploy --branch ${{ github.ref_name }} --account_number 123456789012 --job deploy

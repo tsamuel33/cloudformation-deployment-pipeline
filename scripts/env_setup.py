@@ -16,7 +16,10 @@ args = vars(parser.parse_args())
 def main(branch, var):
     logger.info("Setting environment variable: {}...".format(var))
     config = Configuration(branch)
-    value = config.get_config_value(var)
+    if var == "branch_type":
+        value = config.branch_type
+    else:
+        value = config.get_config_value(var)
     # Must use 'print' rather than 'return' to output value to GitHub Actions
     print(value)
 
