@@ -9,7 +9,7 @@ timeout_seconds = 900
 change_set_before_deploy = false
 stack_name_prefix = travis-test
 termination_protection_enabled = false
-policy_as_code_provider = None
+policy_as_code_provider = opa
 
 [dev]
 environment = dev
