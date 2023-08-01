@@ -369,7 +369,7 @@ class PipelineScope:
 
     #TODO - add steps to validate using OPA. Ensure Deploy script calls this properly
     def opa_validate(self, account, role_name, check_period, stack_prefix, protection, upload_bucket_name):
-        pass
+        logger.info("Placeholder OPA method was initiated successfully")
 
     @staticmethod
     def split_by_env(template_list):

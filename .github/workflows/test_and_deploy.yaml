@@ -74,6 +74,17 @@ jobs:
         run: |
           curl -L -o opa https://openpolicyagent.org/downloads/v0.55.0/opa_linux_amd64_static
           chmod 755 ./opa
+      - name: Configure AWS credentials
+        if: ${{ needs.SetConfigVariables.outputs.policy_as_code_provider != 'None' && needs.SetConfigVariables.outputs.branch_type == 'major' }}
+        uses: aws-actions/configure-aws-credentials@v1-node16
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets[env.SECRET_NAME] }}:role/${{ env.ASSUMED_ROLE_NAME }}
+          role-session-name: GASession
+          aws-region: ${{ env.AWS_REGION }}
+        env:
+          AWS_REGION : "us-east-1"
+          SECRET_NAME: ${{ needs.SetConfigVariables.outputs.account_secret_name }}
+          ASSUMED_ROLE_NAME: ${{ needs.SetConfigVariables.outputs.assumed_role_name }}
       - name: Policy as Code Validation
         if: ${{ needs.SetConfigVariables.outputs.policy_as_code_provider != 'None' }}
         run: python -m scripts.deploy --branch ${{ github.ref_name }} --account_number ${{ needs.SetConfigVariables.outputs.branch_type == 'major' && secrets[env.SECRET_NAME] || '123456789012' }} --job validate
