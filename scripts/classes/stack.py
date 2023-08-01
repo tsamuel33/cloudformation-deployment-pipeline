@@ -62,7 +62,7 @@ class AWSCloudFormationStack:
                  execution_role_name, check_period=15, stack_prefix=None,
                  protection=False, upload_bucket_name=None) -> None:
         self._initial_time = datetime.now(timezone.utc)
-        self._check_period = check_period
+        self._check_period = int(check_period)
         parts = template_file_path.parts
         region = parts[-4]
         if parts[-3] == "all_envs":
@@ -278,6 +278,7 @@ class AWSCloudFormationStack:
         status = ''
         if action_type == "CREATE":
             self.failure_statuses.append('DELETE_IN_PROGRESS')
+        #TODO - Add a break if possible so this doesn't run forever
         while status not in self.success_statuses and status not in self.failure_statuses and status is not None:
             sleep(self._check_period)
             status = self.get_stack()

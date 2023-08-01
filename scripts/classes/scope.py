@@ -337,6 +337,8 @@ class PipelineScope:
             code = 0
         else:
             code = subprocess.run(self.lint_commands).returncode
+            if code == 0:
+                logger.info("Linting completed successfully!")
         return code
     
     def render_template_with_parameters(self, template_path, account_number, role_name,
@@ -364,6 +366,10 @@ class PipelineScope:
         else:
             code = subprocess.run(self.guard_commands).returncode
         return code
+
+    #TODO - add steps to validate using OPA. Ensure Deploy script calls this properly
+    def opa_validate(self, account, role_name, check_period, stack_prefix, protection, upload_bucket_name):
+        pass
 
     @staticmethod
     def split_by_env(template_list):
@@ -420,6 +426,7 @@ class PipelineScope:
     def deploy_scope(self, account_number, role_name, check_period=15,
                      stack_prefix=None, protection=False,
                      upload_bucket_name=None):
+        exit_code = 1
         create_result = self.prep_and_deploy(self.create_list, "CREATE",
                                              account_number, role_name,
                                              check_period, stack_prefix,
@@ -439,6 +446,7 @@ class PipelineScope:
         else:
             delete_result = "CANCELED"
         if delete_result == "SUCCESS":
-            return "SUCCESS"
-        else:
-            return "FAILURE"
+            self.update_deployment_checkpoint()
+            logger.info("Deployments completed successfully!")
+            exit_code = 0
+        return exit_code

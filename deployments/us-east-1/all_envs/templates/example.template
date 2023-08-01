@@ -22,6 +22,17 @@ Parameters:
   # NoDefaultParameter:
   #   Type: String
   #   Description: Doesn't actually do anything
+  AppEnvironment:
+    Type: 'String'
+    AllowedValues:
+    - dev
+    - test
+    - staging
+    - prod
+    Default: dev
+  VpcId:
+    Type: String
+    Description: ID of VPC to launch security group in
 
 Mappings:
   ExampleMap:
@@ -29,35 +40,38 @@ Mappings:
       Value: hello
 
 Conditions:
-  EqualsExample: !Equals [ !Ref RandomParameter, "TBD" ]
+  EqualsExample: !Equals [ !Ref RandomParameter, "non-default" ]
   NotConditionExample: !Not [!Condition EqualsExample]
   OrExample: !Or [!Condition EqualsExample, !Equals [!Ref IngressProtocol, "-1"]]
   AndExample: !And [!Condition EqualsExample, !Equals [!Ref IngressProtocol, "-1"]]
+  isDev: !Equals [!Ref 'AppEnvironment', 'dev']
+  isTest: !Equals [!Ref 'AppEnvironment', 'test']
+  isProd: !Equals [!Ref 'AppEnvironment', 'prod']
 
 Resources:
   # WaitConditionHandler:
   #   Type: 'AWS::CloudFormation::WaitConditionHandle'
   #   Properties: {}
 
-  # CloudFormationReadOnlyRole:
-  #   Type: AWS::IAM::Role
-  #   Properties:
-  #     # RoleName: 'CloudFormationReadOnlyRole'
-  #     Description: Cloud Formation Read-Only Role
-  #     AssumeRolePolicyDocument:
-  #       Version: 2012-10-17
-  #       Statement:
-  #         - Effect: Allow
-  #           Principal:
-  #             Federated:
-  #               - !Sub 'arn:aws:iam::${AWS::AccountId}:saml-provider/provider'
-  #           Action: 'sts:AssumeRoleWithSAML'
-  #           Condition:
-  #             StringEquals:
-  #               'SAML:aud': 'https://signin.aws.amazon.com/saml'
-  #     Tags:
-  #       - Key: "ExtraKey"
-  #         Value: "ExtraValue"
+  CloudFormationReadOnlyRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: TravisCFReadOnly
+      Description: Cloud Formation Read-Only Role
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated:
+                - !Sub 'arn:aws:iam::${AWS::AccountId}:saml-provider/provider'
+            Action: 'sts:AssumeRoleWithSAML'
+            Condition:
+              StringEquals:
+                'SAML:aud': 'https://signin.aws.amazon.com/saml'
+      Tags:
+        - Key: "ExtraKey"
+          Value: "ExtraValue"
 
   # # InternetGateway:
   # #   Type: AWS::EC2::InternetGateway
@@ -78,13 +92,14 @@ Resources:
   DefaultSecurityGroup:
     Type: 'AWS::EC2::SecurityGroup'
     Properties:
-      VpcId: !Ref RandomParameter
+      VpcId: !Ref VpcId
       GroupName: !Sub
-        - ${Alt}DefaultSecurityGroup-${Suffix}
+        - ${Alt}DefaultSecurityGroup-${Suffix}-${NoSub}
         - Alt: !Ref Prefix
           Suffix:
             Ref: RandomParameter
-      GroupDescription: 'Test Checkov'
+          NoSub: !GetAtt CloudFormationReadOnlyRole.Arn
+      GroupDescription: !Sub "${Prefix} test of the sub function in ${AWS::Region}"
       SecurityGroupIngress: []
       SecurityGroupEgress: []
       Tags:
@@ -112,17 +127,15 @@ Outputs:
     Value: !Select [0, !Split [ ',', "first,second,third" ]]
   JoinExample:
     Value: !Join [ "::", [AWS, Region]]
-  ImportValueExample:
-    Value: !ImportValue FakeValueToImport
   GetAZsExample:
-    Value: !Select [0, !GetAZs "us-east-1"]
+    Value: !Select [0, { "Fn::GetAZs" : { "Ref" : "AWS::Region" }}]
   GetAttExample:
     Value: !GetAtt DefaultSecurityGroup.GroupId
   FindInMapExample:
     Value: !FindInMap [ExampleMap, Level1, Value]
   CidrExample:
-    Value: !Cidr ["10.0.0.0/8", 1, 5]
+    Value: !Select [0, !Cidr ["10.1.0.0/16", 3, 8]]
   Base64Example:
     Value: !Base64 hello
   IfExample:
-    Value: !If [EqualsExample, !Ref RandomParameter, !Ref IngressProtocol]
+    Value: !If [EqualsExample, !Ref RandomParameter, !Ref AWS::NoValue]

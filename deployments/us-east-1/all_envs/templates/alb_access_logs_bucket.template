@@ -14,10 +14,30 @@ Mappings:
       ID: "797873946194"
 
 Resources:
+  WaitConditionHandler:
+    Type: 'AWS::CloudFormation::WaitConditionHandle'
+    Properties: {}
+
   ServerAccessLoggingBucket:
     Type: AWS::S3::Bucket
     Properties:
       BucketName: !Sub default-s3-server-access-logs-${AWS::AccountId}-${AWS::Region}-test
+      VersioningConfiguration:
+        Status: Suspended
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+  SecondBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub default-s3-server-access-logs-${AWS::AccountId}-${AWS::Region}-test2
       VersioningConfiguration:
         Status: Suspended
       BucketEncryption:
@@ -38,41 +58,6 @@ Resources:
       PolicyDocument:
         Version: 2012-10-17
         Statement:
-          - Sid: AllowPermissionsCheckBySecurityService
-            Effect: Allow
-            Principal:
-              Service:
-                - securityhub.amazonaws.com
-                - config.amazonaws.com
-                - athena.amazonaws.com
-                - guardduty.amazonaws.com
-                - lambda.amazonaws.com
-            Action: s3:GetBucketAcl
-            Resource:
-              - !Sub 'arn:aws:s3:::${ServerAccessLoggingBucket}'
-          - Sid: AllowAccessByAwsServices
-            Effect: Allow
-            Principal:
-              Service:
-                - securityhub.amazonaws.com
-                - config.amazonaws.com
-                - athena.amazonaws.com
-                - guardduty.amazonaws.com
-                - lambda.amazonaws.com
-            Action:
-              - "s3:GetObject"
-            Resource:
-              - !Sub 'arn:aws:s3:::${ServerAccessLoggingBucket}/*'
-              - !Sub 'arn:aws:s3:::${ServerAccessLoggingBucket}/*/*'
-          - Sid: AllowBucketDeliveryByLambdaService
-            Effect: Allow
-            Principal:
-              Service:
-                - lambda.amazonaws.com
-            Action: s3:PutObject
-            Resource:
-              - !Sub 'arn:aws:s3:::${ServerAccessLoggingBucket}/*'
-              - !Sub 'arn:aws:s3:::${ServerAccessLoggingBucket}/*/*'
           - Sid: S3ServerAccessLogsPolicy
             Effect: Allow
             Principal:
@@ -101,22 +86,18 @@ Resources:
               AWS: {"Fn::Sub": ["arn:aws:iam::${ELBAccount}:root", {ELBAccount: !FindInMap [ELBLoggingAccounts, !Ref AWS::Region, ID]}]}
             Action: s3:PutObject
             Resource: !Sub "arn:aws:s3:::${ServerAccessLoggingBucket}/*/AWSLogs/${AWS::AccountId}/*"
-          # - Fn::Sub:
-          #   - |
-          #     {
-          #       "Sid": "AllowLoadBalancerLogs",
-          #       "Effect": "Allow",
-          #       "Principal": {
-          #         "AWS": "arn:aws:iam::${ELBAccount}:root"
-          #       },
-          #       "Action": "s3:PutObject",
-          #       "Resource": !Sub "arn:aws:s3:::${ServerAccessLoggingBucket}/*/AWSLogs/${AWS::AccountId}/*"
-          #     }
-          #   - ELBAccount: !FindInMap [ELBLoggingAccounts, !Ref AWS::Region, ID]
+          - Sid: AllowLoadBalancerLogs
+            Effect: Allow
+            Principal:
+              AWS: !Sub
+                - "arn:aws:iam::${ELBAccount}:root"
+                - ELBAccount: !FindInMap [ELBLoggingAccounts, !Ref AWS::Region, ID]
+            Action: s3:PutObject
+            Resource: !Sub "arn:aws:s3:::${ServerAccessLoggingBucket}/*/AWSLogs/${AWS::AccountId}/*"
 
-# Outputs:
-#   ServerAccessLoggingBucketName:
-#     Description: Default Local S3 Server Access Logging Bucket Name
-#     Value: !Ref ServerAccessLoggingBucket
-#     Export:
-#       Name: S3ServerAccessLoggingBucket
+Outputs:
+  ServerAccessLoggingBucketName:
+    Description: Default Local S3 Server Access Logging Bucket Name
+    Value: !Ref ServerAccessLoggingBucket
+    Export:
+      Name: TravisS3ServerAccessLoggingBucket

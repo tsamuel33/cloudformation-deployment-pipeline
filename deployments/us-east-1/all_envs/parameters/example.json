@@ -1,4 +1,5 @@
 {
     "RandomParameter": "non-default",
-    "ExtraParameter": "ignore me"
+    "ExtraParameter": "ignore me",
+    "VpcId": "vpc-0ee45e6aa86120768"
 }

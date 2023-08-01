@@ -1,0 +1,22 @@
+AWSTemplateFormatVersion: 2010-09-09
+
+Resources:
+  AddonGALocalSecurityPipelineStackExecutionRolePolicy:
+    Type: 'AWS::IAM::ManagedPolicy'
+    Properties:
+      ManagedPolicyName: AddonGAAppDeployPipelineStackExecutionRole2
+      Description: 'Addon policy for GAAppDeployPipelineStackExecutionRole'
+      Path: '/app/'
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Sid: "E2EActions"
+            Effect: Allow
+            Action:
+              - 'iam:GetRole'
+              - iam:CreateRole
+            Resource:
+              - !Sub "arn:aws:iam::${AWS::AccountId}:role/*"
+              - !Sub "arn:aws:iam::${AWS::AccountId}:role/TravisCFReadOnly"
+      Roles:
+        - 'GAAppDeployPipelineStackExecutionRole'

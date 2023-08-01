@@ -1,6 +1,6 @@
 import configparser
-from pathlib import Path
 import logging
+from pathlib import Path
 
 # Set up logger
 logger = logging.getLogger(Path(__file__).name)
@@ -32,7 +32,7 @@ class Configuration:
     config_file = root_dir / 'config'
     required_settings = [
         "environment",
-        {"github_secret_type": ["repository", "deployment"]},
+        {"github_secret_type": ["repository", "environment", "organization"]},
         "stack_execution_role_name",
         "account_number_secret_name"
     ]
@@ -63,7 +63,12 @@ class Configuration:
     def get_config_value(self, attribute, fallback=None):
         try:
             value = self.config[self.section].get(attribute, fallback)
-            return value
+            if value is not None:
+                if value.lower() == 'true':
+                    value = True
+                elif value.lower() == 'false':
+                    value = False
+                return value
         except KeyError:
             message = "Configuration is missing section: {}".format(self.section)
             logger.error(message)
