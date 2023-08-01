@@ -11,7 +11,7 @@ stack_name_prefix = travis-test
 termination_protection_enabled = false
 policy_as_code_provider = None
 
-[e2e-test]
+[dev]
 environment = dev
 account_number_secret_name = DEV_AWS_ACCOUNT_NUMBER
 
