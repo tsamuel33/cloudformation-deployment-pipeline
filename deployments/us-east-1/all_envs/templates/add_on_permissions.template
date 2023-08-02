@@ -1,12 +1,12 @@
 AWSTemplateFormatVersion: 2010-09-09
 
 Resources:
-  AddonGALocalSecurityPipelineStackExecutionRolePolicy:
+  AddonGitHubActionsExecutionRolePolicy:
     Type: 'AWS::IAM::ManagedPolicy'
     Properties:
-      ManagedPolicyName: AddonGAAppDeployPipelineStackExecutionRole2
-      Description: 'Addon policy for GAAppDeployPipelineStackExecutionRole'
-      Path: '/app/'
+      ManagedPolicyName: AddonGitHubActionsExecutionRolePolicy
+      Description: 'Addon policy for GitHubActionsExecutionRole'
+      Path: '/oidc-assumed/'
       PolicyDocument:
         Version: 2012-10-17
         Statement:
@@ -16,7 +16,7 @@ Resources:
               - 'iam:GetRole'
               - iam:CreateRole
             Resource:
-              - !Sub "arn:aws:iam::${AWS::AccountId}:role/*"
-              - !Sub "arn:aws:iam::${AWS::AccountId}:role/TravisCFReadOnly"
+              - !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/*"
+              - !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/TravisCFReadOnly"
       Roles:
-        - 'GAAppDeployPipelineStackExecutionRole'
+        - 'GitHubActionsExecutionRole'

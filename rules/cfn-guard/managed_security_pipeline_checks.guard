@@ -31,7 +31,11 @@ rule supported_resource_types {
             'AWS::Config::ConfigRule',
             'AWS::Logs::LogGroup',
             'AWS::Logs::ResourcePolicy',
-            'AWS::Events::Rule'
+            'AWS::Events::Rule',
+            'AWS::S3::Bucket',
+            'AWS::S3::BucketPolicy',
+            'AWS::CloudFormation::WaitConditionHandle',
+            'AWS::EC2::VPC'
         ] << Template contains invalid resource type that should be deployed as part of application pipeline >>
 }
 

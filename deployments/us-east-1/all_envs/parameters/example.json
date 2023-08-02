@@ -1,5 +1,6 @@
 {
-    "RandomParameter": "non-default",
-    "ExtraParameter": "ignore me",
-    "VpcId": "vpc-0ee45e6aa86120768"
+    "SGCidr": "10.33.0.0/16",
+    "Suffix": "33",
+    "IngressProtocol": "-1",
+    "Prefix": "Tsamuel"
 }
