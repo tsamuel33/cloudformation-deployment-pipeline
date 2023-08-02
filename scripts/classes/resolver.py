@@ -153,7 +153,7 @@ def create_test_file(filepath, data):
         logger.error("Validataion dir does not exist.")
         os.mkdir(validation_dir, mode=644)
         logger.info("Attempted to create folder")
-        print(validation_dir.exists())
+        logger.info(str(validation_dir.exists()))
         logger.info("End result")
     else:
         logger.info("Validataion dir does exists.")
