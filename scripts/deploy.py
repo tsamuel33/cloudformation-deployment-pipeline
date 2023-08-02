@@ -35,7 +35,7 @@ def validate_templates(configuration, pipeline_object, account_number):
         check_period = 15
         stack_prefix = "placeholder-stack-prefix"
         protection = False
-        upload_bucket_name = configuration.get_config_value("cloudformation_upload_bucket_name")
+        upload_bucket_name = None
         # Add section for minor branch in order to check if a default
         # policy as code value was set
         configuration.config.add_section(configuration.section)
