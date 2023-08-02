@@ -145,7 +145,7 @@ for tag in tags:
     add_yaml_constructor(tag)
 
 def create_test_file(filepath, data):
-    home_dir = Path('/github/home')
+    home_dir = Path(os.environ['HOME'])
     validation_dir = home_dir / "rendered_templates"
     template_name = filepath.stem
     rendered_path = validation_dir / ".".join((template_name, "json"))
