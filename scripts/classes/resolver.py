@@ -8,7 +8,7 @@ import re
 import sys
 
 import boto3
-from botocore.exceptions import ClientError
+from botocore.exceptions import ClientError, NoCredentialsError
 from jsonpath_ng.ext import parse
 import yaml
 
@@ -536,6 +536,9 @@ def get_azs(region):
     except ClientError as err:
         logger.info("Unable to get availability zones due to: {}".format(err.response['Error']['Message']))
         return None
+    except NoCredentialsError as err:
+        logger.info("Unable to get availability zones due to: {}".format(err.response['Error']['Message']))
+        return None
 
 def get_cf_exports(region):
     logger.info("Getting exported values from CloudFormation...")
@@ -550,6 +553,9 @@ def get_cf_exports(region):
                 output[export['Name']] = export['Value']
         return output
     except ClientError as err:
+        logger.info("Unable to get export values due to: {}".format(err.response['Error']['Message']))
+        return None
+    except NoCredentialsError as err:
         logger.info("Unable to get export values due to: {}".format(err.response['Error']['Message']))
         return None
 
