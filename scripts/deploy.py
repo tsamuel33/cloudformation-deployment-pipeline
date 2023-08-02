@@ -44,7 +44,7 @@ def validate_templates(configuration, pipeline_object, account_number):
         configuration.config.remove_section(configuration.section)
         account = "123456789012"
         if validation_engine is not None:
-            logger.info("Validating template using placeholder AWS account number: 123456789012")
+            logger.info("Validating templates using placeholder AWS account number: 123456789012")
     if validation_engine is None:
         logger.info("No policy as code provider selected. Skipping validation...")
         exit_code = 0
