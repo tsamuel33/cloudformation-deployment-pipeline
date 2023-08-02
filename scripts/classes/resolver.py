@@ -153,10 +153,11 @@ def create_test_file(filepath, data):
         os.mkdir(validation_dir, mode=760)
     if rendered_path.exists():
         original_path = rendered_path
-        new_name = rendered_path.as_posix() + "_1"
-        rendered_path = Path(new_name)
+        parent = rendered_path.parent
+        stem = rendered_path.stem
+        rendered_path = parent / "".join((stem, "_1", ".json"))
         message = "Test file {} ".format(original_path.as_posix()) + \
-            "already exists. Creating new file: {}".format(new_name)
+            "already exists. Creating new file: {}".format(rendered_path.as_posix())
         logger.warning(message)
     with open(rendered_path, "w") as file:
         file.write(data)
@@ -356,14 +357,17 @@ def replace_sub(json_path, data, parameters, input, region, partition, account_n
         instances = re.findall(sub_reg, output_string)
         for instance in instances:
             param_name = instance[1]
-            if "AWS::" in param_name:
-                param_value = get_ref_value(parameters, param_name, region, partition, account_number, stack_name)
-            else:
+            try:
                 param_value = output_params[param_name]
+            except KeyError:
+                param_value = get_ref_value(parameters, param_name, region, partition, account_number, stack_name)
             if isinstance(param_value, (str, int)):
                 pattern = "".join(('(\\${)(', param_name, ')(})'))
                 output_string = re.sub(pattern, param_value, output_string)
-                del output_params[param_name]
+                try:
+                    del output_params[param_name]
+                except KeyError:
+                    logger.info("Skipping replacement of key [{}] from string: {}".format(param_name,output_string))
         if output_params == {}:
             json_path.update(data, output_string)
         else:
