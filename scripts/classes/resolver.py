@@ -356,7 +356,10 @@ def replace_sub(json_path, data, parameters, input, region, partition, account_n
         instances = re.findall(sub_reg, output_string)
         for instance in instances:
             param_name = instance[1]
-            param_value = output_params[param_name]
+            if "AWS::" in param_name:
+                param_value = get_ref_value(parameters, param_name, region, partition, account_number, stack_name)
+            else:
+                param_value = output_params[param_name]
             if isinstance(param_value, (str, int)):
                 pattern = "".join(('(\\${)(', param_name, ')(})'))
                 output_string = re.sub(pattern, param_value, output_string)
