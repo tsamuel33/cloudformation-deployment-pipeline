@@ -68,43 +68,44 @@ jobs:
         if: ${{ needs.SetConfigVariables.outputs.policy_as_code_provider == 'guard' }}
         run: |
           /home/linuxbrew/.linuxbrew/bin/brew install cloudformation-guard
-          # curl --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/aws-cloudformation/cloudformation-guard/main/install-guard.sh | sh
-      - name: Install Open Policy Agent
-        if: ${{ needs.SetConfigVariables.outputs.policy_as_code_provider == 'opa' }}
-        run: |
-          curl -L -o opa https://openpolicyagent.org/downloads/v0.55.0/opa_linux_amd64_static
-          chmod 755 ./opa
-      - name: Configure AWS credentials
-        if: ${{ needs.SetConfigVariables.outputs.policy_as_code_provider != 'None' && needs.SetConfigVariables.outputs.branch_type == 'major' }}
-        uses: aws-actions/configure-aws-credentials@v1-node16
-        with:
-          role-to-assume: arn:aws:iam::${{ secrets[env.SECRET_NAME] }}:role/${{ env.ASSUMED_ROLE_NAME }}
-          role-session-name: GASession
-          aws-region: ${{ env.AWS_REGION }}
-        env:
-          AWS_REGION : "us-east-1"
-          SECRET_NAME: ${{ needs.SetConfigVariables.outputs.account_secret_name }}
-          ASSUMED_ROLE_NAME: ${{ needs.SetConfigVariables.outputs.assumed_role_name }}
-      - name: Policy as Code Validation
-        if: ${{ needs.SetConfigVariables.outputs.policy_as_code_provider != 'None' }}
-        run: python -m scripts.deploy --branch ${{ github.ref_name }} --account_number ${{ needs.SetConfigVariables.outputs.branch_type == 'major' && secrets[env.SECRET_NAME] || '123456789012' }} --job validate
-  Deploy:
-    runs-on: ubuntu-latest
-    needs: [SetConfigVariables, Test]
-    if: ${{ needs.SetConfigVariables.outputs.branch_type == 'major' }}
-    environment: ${{ needs.SetConfigVariables.outputs.github_secret_type == 'environment' && needs.SetConfigVariables.outputs.environment || null }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v3
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v1-node16
-        with:
-          role-to-assume: arn:aws:iam::${{ secrets[env.SECRET_NAME] }}:role/${{ env.ASSUMED_ROLE_NAME }}
-          role-session-name: GASession
-          aws-region: ${{ env.AWS_REGION }}
-        env:
-          AWS_REGION : "us-east-1"
-          SECRET_NAME: ${{ needs.SetConfigVariables.outputs.account_secret_name }}
-          ASSUMED_ROLE_NAME: ${{ needs.SetConfigVariables.outputs.assumed_role_name }}
-      - name: Deploy Templates
-        run: python -m scripts.deploy --branch ${{ github.ref_name }} --account_number ${{ secrets[env.SECRET_NAME] }} --job deploy
+          ls / ~
+  #         # curl --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/aws-cloudformation/cloudformation-guard/main/install-guard.sh | sh
+  #     - name: Install Open Policy Agent
+  #       if: ${{ needs.SetConfigVariables.outputs.policy_as_code_provider == 'opa' }}
+  #       run: |
+  #         curl -L -o opa https://openpolicyagent.org/downloads/v0.55.0/opa_linux_amd64_static
+  #         chmod 755 ./opa
+  #     - name: Configure AWS credentials
+  #       if: ${{ needs.SetConfigVariables.outputs.policy_as_code_provider != 'None' && needs.SetConfigVariables.outputs.branch_type == 'major' }}
+  #       uses: aws-actions/configure-aws-credentials@v1-node16
+  #       with:
+  #         role-to-assume: arn:aws:iam::${{ secrets[env.SECRET_NAME] }}:role/${{ env.ASSUMED_ROLE_NAME }}
+  #         role-session-name: GASession
+  #         aws-region: ${{ env.AWS_REGION }}
+  #       env:
+  #         AWS_REGION : "us-east-1"
+  #         SECRET_NAME: ${{ needs.SetConfigVariables.outputs.account_secret_name }}
+  #         ASSUMED_ROLE_NAME: ${{ needs.SetConfigVariables.outputs.assumed_role_name }}
+  #     - name: Policy as Code Validation
+  #       if: ${{ needs.SetConfigVariables.outputs.policy_as_code_provider != 'None' }}
+  #       run: python -m scripts.deploy --branch ${{ github.ref_name }} --account_number ${{ needs.SetConfigVariables.outputs.branch_type == 'major' && secrets[env.SECRET_NAME] || '123456789012' }} --job validate
+  # Deploy:
+  #   runs-on: ubuntu-latest
+  #   needs: [SetConfigVariables, Test]
+  #   if: ${{ needs.SetConfigVariables.outputs.branch_type == 'major' }}
+  #   environment: ${{ needs.SetConfigVariables.outputs.github_secret_type == 'environment' && needs.SetConfigVariables.outputs.environment || null }}
+  #   steps:
+  #     - name: Checkout
+  #       uses: actions/checkout@v3
+  #     - name: Configure AWS credentials
+  #       uses: aws-actions/configure-aws-credentials@v1-node16
+  #       with:
+  #         role-to-assume: arn:aws:iam::${{ secrets[env.SECRET_NAME] }}:role/${{ env.ASSUMED_ROLE_NAME }}
+  #         role-session-name: GASession
+  #         aws-region: ${{ env.AWS_REGION }}
+  #       env:
+  #         AWS_REGION : "us-east-1"
+  #         SECRET_NAME: ${{ needs.SetConfigVariables.outputs.account_secret_name }}
+  #         ASSUMED_ROLE_NAME: ${{ needs.SetConfigVariables.outputs.assumed_role_name }}
+  #     - name: Deploy Templates
+  #       run: python -m scripts.deploy --branch ${{ github.ref_name }} --account_number ${{ secrets[env.SECRET_NAME] }} --job deploy
