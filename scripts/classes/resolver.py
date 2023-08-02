@@ -150,7 +150,7 @@ def create_test_file(filepath, data):
     template_name = filepath.stem
     rendered_path = validation_dir / ".".join((template_name, "json"))
     if not validation_dir.exists():
-        os.mkdir(validation_dir, mode=777)
+        os.mkdir(validation_dir, mode=666)
     else:
         logger.info("Validataion dir does exists.")
     with open(rendered_path, "w+") as file:
@@ -539,7 +539,7 @@ def get_azs(region):
         logger.info("Unable to get availability zones due to: {}".format(err.response['Error']['Message']))
         return None
     except NoCredentialsError as err:
-        logger.info("Unable to get availability zones due to: {}".format(err.response['Error']['Message']))
+        logger.info("Unable to get availability zones due to: No AWS Credentials Found")
         return None
 
 def get_cf_exports(region):
@@ -558,7 +558,7 @@ def get_cf_exports(region):
         logger.info("Unable to get export values due to: {}".format(err.response['Error']['Message']))
         return None
     except NoCredentialsError as err:
-        logger.info("Unable to get export values due to: {}".format(err.response['Error']['Message']))
+        logger.info("Unable to get export values due to: No AWS Credentials Found")
         return None
 
 
