@@ -65,6 +65,7 @@ class PipelineScope:
         "-r"
     ]
     guard_commands = [
+        "cfn-guard",
         "validate",
         "-r",
         cfn_guard_dir.as_posix()
@@ -350,8 +351,8 @@ class PipelineScope:
 
     def cfn_guard_validate(self, account_number, role_name, check_period, stack_prefix, protection, upload_bucket_name):
         home_dir = Path.home()
-        guard_exe = home_dir / ".guard" / "bin" /"cfn-guard"
-        self.guard_commands.insert(0, guard_exe.as_posix())
+        # guard_exe = home_dir / ".guard" / "bin" /"cfn-guard"
+        # self.guard_commands.insert(0, guard_exe.as_posix())
         for template in self.create_list:
             rendered = self.render_template_with_parameters(template, account_number, role_name,
                          check_period, stack_prefix, protection, upload_bucket_name)
