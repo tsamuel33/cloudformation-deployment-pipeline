@@ -65,7 +65,7 @@ class PipelineScope:
         "-r"
     ]
     guard_commands = [
-        "cfn-guard",
+        "~/.guard/bin",
         "validate",
         "-r",
         cfn_guard_dir.as_posix()
