@@ -145,8 +145,8 @@ for tag in tags:
     add_yaml_constructor(tag)
 
 def create_test_file(filepath, data):
-    temp_dir = Path('/tmp')
-    validation_dir = temp_dir / "rendered_templates"
+    home_dir = Path('/github/home')
+    validation_dir = home_dir / "rendered_templates"
     template_name = filepath.stem
     rendered_path = validation_dir / ".".join((template_name, "json"))
     if not validation_dir.exists():
