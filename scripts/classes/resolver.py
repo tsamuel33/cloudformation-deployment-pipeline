@@ -146,10 +146,6 @@ for tag in tags:
 
 def create_test_file(filepath, data):
     temp_dir = Path('/tmp')
-    region_dir = Path(filepath).parents[2]
-    region_parts = region_dir.parts
-    for part in range(0, len(region_parts)):
-        temp_dir = temp_dir / region_parts[part]
     validation_dir = temp_dir / "rendered_templates"
     template_name = filepath.stem
     rendered_path = validation_dir / ".".join((template_name, "json"))
