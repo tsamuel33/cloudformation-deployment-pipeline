@@ -61,7 +61,7 @@ jobs:
       - name: Install Linting Dependencies
         run: |
           echo "Installing cfn-lint, GitPython, and jsonpath-ng via pip..."
-          pip install cfn-lint GitPython jsonpath-ng --quiet --trusted-host files.pythonhosted.org
+          pip install cfn-lint GitPython jsonpath-ng --quiet
       - name: Lint Templates
         run: python -m scripts.deploy --branch ${{ github.ref_name }} --job lint
       - name: Install cfn-guard
