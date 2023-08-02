@@ -150,7 +150,7 @@ def create_test_file(filepath, data):
     template_name = filepath.stem
     rendered_path = validation_dir / ".".join((template_name, "json"))
     if not validation_dir.exists():
-        os.mkdir(validation_dir, mode=666)
+        os.mkdir(validation_dir, mode=766)
     else:
         logger.info("Validataion dir does exists.")
     with open(rendered_path, "w+") as file:
