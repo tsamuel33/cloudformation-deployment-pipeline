@@ -75,7 +75,7 @@ jobs:
           curl -L -o opa https://openpolicyagent.org/downloads/v0.55.0/opa_linux_amd64_static
           chmod 755 ./opa
       - name: Configure AWS credentials
-        if: ${{ needs.SetConfigVariables.outputs.policy_as_code_provider != 'None' }}
+        if: ${{ needs.SetConfigVariables.outputs.policy_as_code_provider != 'None' && needs.SetConfigVariables.outputs.branch_type == 'major' }}
         uses: aws-actions/configure-aws-credentials@v1-node16
         with:
           role-to-assume: arn:aws:iam::${{ secrets[env.SECRET_NAME] }}:role/${{ env.ASSUMED_ROLE_NAME }}
