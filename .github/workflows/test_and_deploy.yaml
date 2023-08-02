@@ -68,7 +68,6 @@ jobs:
         if: ${{ needs.SetConfigVariables.outputs.policy_as_code_provider == 'guard' }}
         run: |
           curl --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/aws-cloudformation/cloudformation-guard/main/install-guard.sh | sh
-          export PATH=~/.guard/bin:$PATH
       - name: Install Open Policy Agent
         if: ${{ needs.SetConfigVariables.outputs.policy_as_code_provider == 'opa' }}
         run: |
