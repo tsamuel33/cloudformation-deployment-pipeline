@@ -21,30 +21,13 @@ def lint_templates(pipeline_object):
     return exit_code
 
 def validate_templates(configuration, pipeline_object, account_number):
-    if configuration.branch_type == "major":
-        role_name = configuration.get_config_value("stack_execution_role_name")
-        check_period = configuration.get_config_value("cf_check_period_seconds", 15)
-        stack_prefix = configuration.get_config_value("stack_name_prefix")
-        protection = configuration.get_config_value("termination_protection_enabled", False)
-        upload_bucket_name = configuration.get_config_value("cloudformation_upload_bucket_name")
-        validation_engine = configuration.get_config_value("policy_as_code_provider")
-        account = account_number
-    # Add placeholder values for minor branch validation
-    else:
-        role_name = "MinorBranchPlaceholderRole"
-        check_period = 15
-        stack_prefix = "placeholder-stack-prefix"
-        protection = False
-        upload_bucket_name = None
-        # Add section for minor branch in order to check if a default
-        # policy as code value was set
-        configuration.config.add_section(configuration.section)
-        validation_engine = configuration.get_config_value("policy_as_code_provider")
-        # Clean up added section to prevent unwanted errors
-        configuration.config.remove_section(configuration.section)
-        account = "123456789012"
-        if validation_engine is not None:
-            logger.info("Validating templates using placeholder AWS account number: 123456789012")
+    role_name = configuration.get_config_value("stack_execution_role_name")
+    check_period = configuration.get_config_value("cf_check_period_seconds", 15)
+    stack_prefix = configuration.get_config_value("stack_name_prefix")
+    protection = configuration.get_config_value("termination_protection_enabled", False)
+    upload_bucket_name = configuration.get_config_value("cloudformation_upload_bucket_name")
+    validation_engine = configuration.get_config_value("policy_as_code_provider")
+    account = account_number
     if validation_engine is None:
         logger.info("No policy as code provider selected. Skipping validation...")
         exit_code = 0

@@ -10,6 +10,7 @@ change_set_before_deploy = false
 stack_name_prefix = travis-test
 termination_protection_enabled = false
 policy_as_code_provider = guard
+lowest_branch = dev
 
 [dev]
 environment = dev

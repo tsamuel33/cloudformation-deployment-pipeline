@@ -41,10 +41,15 @@ class Configuration:
         self.config = self.initialize_config()
         self.section = branch
         self.branch_type = self.validate_configuration()
-        if self.branch_type == "major":
-            self.environment = self.get_config_value("environment")
-        else:
-            self.environment = None
+        if self.branch_type == "minor":
+            # Add section for minor branch to get default environment
+            self.config.add_section(branch)
+            self.section = self.get_config_value("lowest_branch")
+            message = "Using settings of branch: {}".format(self.section)
+            logger.info(message)
+            # Clean up added section to prevent unwanted errors
+            self.config.remove_section(branch)
+        self.environment = self.get_config_value("environment")
 
     def initialize_config(self):
         # Check if config file already exists
@@ -54,7 +59,6 @@ class Configuration:
                 self.config_file) + "Please create the file and commit " + \
                 "to the repository"
             raise ConfigurationError(message)
-
         config = configparser.ConfigParser()
         config.read_file(open(self.config_file))
         return config
