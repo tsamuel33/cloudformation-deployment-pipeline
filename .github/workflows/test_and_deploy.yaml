@@ -1,8 +1,8 @@
 name: Test and Deploy CloudFormation Templates
 on:
   push:
-    # paths:
-    #   - 'deployments/*'
+    paths:
+      - 'deployments/*'
 permissions:
       id-token: write
       contents: read
