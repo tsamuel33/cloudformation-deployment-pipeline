@@ -1,4 +1,5 @@
 import logging
+import os
 from pathlib import Path
 import subprocess
 
@@ -65,9 +66,12 @@ class PipelineScope:
         "-r"
     ]
     guard_commands = [
+        "cfn-guard",
         "validate",
         "-r",
-        cfn_guard_dir.as_posix()
+        cfn_guard_dir.as_posix(),
+        "-d",
+        Path(os.environ['HOME']).as_posix() + "/rendered_templates"
     ]
 
     def __init__(self, branch, environment) -> None:
@@ -349,19 +353,16 @@ class PipelineScope:
         return rendered_template
 
     def cfn_guard_validate(self, account_number, role_name, check_period, stack_prefix, protection, upload_bucket_name):
-        home_dir = Path.home()
-        guard_exe = home_dir / ".guard" / "bin" /"cfn-guard"
-        self.guard_commands.insert(0, guard_exe.as_posix())
         for template in self.create_list:
             rendered = self.render_template_with_parameters(template, account_number, role_name,
                          check_period, stack_prefix, protection, upload_bucket_name)
-            self.guard_commands.append("-d")
-            self.guard_commands.append(rendered.as_posix())
+            # self.guard_commands.append("-d")
+            # self.guard_commands.append(rendered.as_posix())
         for template in self.update_list:
             rendered = self.render_template_with_parameters(template, account_number, role_name,
                          check_period, stack_prefix, protection, upload_bucket_name)
-            self.guard_commands.append("-d")
-            self.guard_commands.append(rendered.as_posix())
+            # self.guard_commands.append("-d")
+            # self.guard_commands.append(rendered.as_posix())
         if self.guard_commands[-1] == self.cfn_guard_dir.as_posix():
             logger.info("No templates in scope for validation.")
             code = 0

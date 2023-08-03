@@ -55,6 +55,7 @@ jobs:
     environment: ${{ needs.SetConfigVariables.outputs.github_secret_type == 'environment' && needs.SetConfigVariables.outputs.environment || null }}
     env:
       SECRET_NAME: ${{ needs.SetConfigVariables.outputs.account_secret_name }}
+      RUST_BACKTRACE: full
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -66,7 +67,10 @@ jobs:
         run: python -m scripts.deploy --branch ${{ github.ref_name }} --job lint
       - name: Install cfn-guard
         if: needs.SetConfigVariables.outputs.policy_as_code_provider == 'guard'
-        run: curl --proto ''=https'' --tlsv1.2 -sSf https://raw.githubusercontent.com/aws-cloudformation/cloudformation-guard/main/install-guard.sh | sh
+        run: |
+          curl --proto ''=https'' --tlsv1.2 -sSf https://raw.githubusercontent.com/aws-cloudformation/cloudformation-guard/main/install-guard.sh | sh
+          GUARD_DIR=~/.guard/bin
+          echo $GUARD_DIR >> $GITHUB_PATH
       - name: Install Open Policy Agent
         if: needs.SetConfigVariables.outputs.policy_as_code_provider == 'opa'
         run: |
