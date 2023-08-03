@@ -1,0 +1,22 @@
+AWSTemplateFormatVersion: 2010-09-09
+
+Resources:
+  AddonGitHubActionsExecutionRolePolicy:
+    Type: 'AWS::IAM::ManagedPolicy'
+    Properties:
+      ManagedPolicyName: AddonGitHubActionsExecutionRolePolicy
+      Description: 'Addon policy for GitHubActionsExecutionRole'
+      Path: '/oidc-assumed/'
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Sid: "E2EActions"
+            Effect: Allow
+            Action:
+              - 'iam:GetRole'
+              - iam:CreateRole
+            Resource:
+              - !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/*"
+              - !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/TravisCFReadOnly"
+      Roles:
+        - 'GitHubActionsExecutionRole'

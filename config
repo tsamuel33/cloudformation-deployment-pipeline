@@ -1,28 +1,33 @@
 [DEFAULT]
 github_secret_type = repository
-stack_execution_role_name = StackExecutionRole
+github_assumed_role_name = oidc-assumed/GitHubActionsAssumedRole
+stack_execution_role_name = oidc-assumed/GitHubActionsExecutionRole
 cloudformation_upload_bucket_name = None
 sam_upload_bucket_name = None
 cf_check_period_seconds = 30
 timeout_seconds = 900
 change_set_before_deploy = false
+stack_name_prefix = travis-test
+termination_protection_enabled = false
+policy_as_code_provider = None
+lowest_branch = dev
 
 [dev]
 environment = dev
+account_number_secret_name = DEV_AWS_ACCOUNT_NUMBER
 
 [test]
 environment = test
+account_number_secret_name = fake
 
 [main]
 environment = prod
-github_secret_type = deployments
-account_number_secret_name = PROD_AWS_ACCOUNT_NUMBER
-all_env_template_mapping_file_name = Placeholder
-all_env_parameter_mapping_file_name = Placeholder
+github_secret_type = environment
+account_number_secret_name = AWS_ACCOUNT_NUMBER
 
 [<branch_name>]
 environment = <ENVIRONMENT_NAME>
-github_secret_type = deployment
+github_secret_type = environment
 template_timeout_seconds = 900
 stack_execution_role_name = path/StackExecutionRoleName
 account_number_secret_name = PROD_AWS_ACCOUNT_NUMBER

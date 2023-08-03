@@ -1,4 +1,5 @@
 {
-    "template_file_name": "existing_stack_name1",
-    "template_file_name2": "existing_stack_name2"
+    "example.json": "travis-test-stack-2",
+    "template_file_name2": "existing_stack_name2",
+    "large_sam.template": "travis-customized-name-example"
 }

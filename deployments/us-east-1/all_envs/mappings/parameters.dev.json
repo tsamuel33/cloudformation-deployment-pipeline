@@ -1,3 +1,4 @@
 {
-    "template_file_name": "parameter_file_name"
+    "template_file_name": "parameter_file_name",
+    "example.template": "example.json"
 }

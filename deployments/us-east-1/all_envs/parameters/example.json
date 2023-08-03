@@ -1,4 +1,6 @@
 {
-    "RandomParameter": "non-default",
-    "ExtraParameter": "ignore me"
+    "SGCidr": "10.33.0.0/16",
+    "Suffix": "33",
+    "IngressProtocol": "-1",
+    "Prefix": "Tsamuel"
 }

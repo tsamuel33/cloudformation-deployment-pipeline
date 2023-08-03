@@ -1,6 +1,6 @@
 import configparser
-from pathlib import Path
 import logging
+from pathlib import Path
 
 # Set up logger
 logger = logging.getLogger(Path(__file__).name)
@@ -32,7 +32,7 @@ class Configuration:
     config_file = root_dir / 'config'
     required_settings = [
         "environment",
-        {"github_secret_type": ["repository", "deployment"]},
+        {"github_secret_type": ["repository", "environment", "organization"]},
         "stack_execution_role_name",
         "account_number_secret_name"
     ]
@@ -41,10 +41,15 @@ class Configuration:
         self.config = self.initialize_config()
         self.section = branch
         self.branch_type = self.validate_configuration()
-        if self.branch_type == "major":
-            self.environment = self.get_config_value("environment")
-        else:
-            self.environment = None
+        if self.branch_type == "minor":
+            # Add section for minor branch to get default environment
+            self.config.add_section(branch)
+            self.section = self.get_config_value("lowest_branch")
+            message = "Using settings of branch: {}".format(self.section)
+            logger.info(message)
+            # Clean up added section to prevent unwanted errors
+            self.config.remove_section(branch)
+        self.environment = self.get_config_value("environment")
 
     def initialize_config(self):
         # Check if config file already exists
@@ -54,7 +59,6 @@ class Configuration:
                 self.config_file) + "Please create the file and commit " + \
                 "to the repository"
             raise ConfigurationError(message)
-
         config = configparser.ConfigParser()
         config.read_file(open(self.config_file))
         return config
@@ -63,7 +67,12 @@ class Configuration:
     def get_config_value(self, attribute, fallback=None):
         try:
             value = self.config[self.section].get(attribute, fallback)
-            return value
+            if value is not None:
+                if value.lower() == 'true':
+                    value = True
+                elif value.lower() == 'false':
+                    value = False
+                return value
         except KeyError:
             message = "Configuration is missing section: {}".format(self.section)
             logger.error(message)

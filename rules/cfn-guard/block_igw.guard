@@ -1,0 +1,13 @@
+rule no_igw_creation {
+    Resources.*.Type != 'AWS::EC2::InternetGateway'
+}
+
+let route_resources = Resources.*[ Type == 'AWS::EC2::Route' ]
+
+rule no_route_to_igw when %route_resources !empty {
+    %route_resources {
+        Properties {
+            GatewayId empty OR GatewayId != /^igw/
+        }
+    }
+}

@@ -1,15 +1,18 @@
-import boto3
+from datetime import datetime, timezone
 import json
 import logging
-import yaml
-from botocore.exceptions import ClientError, WaiterError
-from datetime import datetime, timezone
-from .decorators import boto3_error_decorator
-from .mappings import Mappings
-from .s3 import AWSS3UploadBucket
 from pathlib import Path
 from sys import exit
 from time import sleep
+
+import boto3
+from botocore.exceptions import ClientError, WaiterError
+import yaml
+
+from scripts.classes.decorators import boto3_error_decorator
+from scripts.classes.mappings import Mappings
+from scripts.classes.s3 import AWSS3UploadBucket
+
 
 # Set up logger
 logger = logging.getLogger(Path(__file__).name)
@@ -59,7 +62,7 @@ class AWSCloudFormationStack:
                  execution_role_name, check_period=15, stack_prefix=None,
                  protection=False, upload_bucket_name=None) -> None:
         self._initial_time = datetime.now(timezone.utc)
-        self._check_period = check_period
+        self._check_period = int(check_period)
         parts = template_file_path.parts
         region = parts[-4]
         if parts[-3] == "all_envs":
@@ -123,28 +126,34 @@ class AWSCloudFormationStack:
         else:
             default_name = ".".join((prefix, "json"))
         # Attempt to get name from mapping file. Use default if name is not found
-        name = self._parameter_mapping.get_mapping_value(filename, "parameters")
-        if name is None:
-            name = default_name
-        param_dir = self.template_path.parents[1] / "parameters"
-        path = param_dir / name
-        return path
+        if self._parameter_mapping.mapping is not None:
+            name = self._parameter_mapping.get_mapping_value(filename, "parameters")
+            if name is None:
+                name = default_name
+            param_dir = self.template_path.parents[1] / "parameters"
+            path = param_dir / name
+            return path
+        else:
+            return None
 
     @staticmethod
     def load_file(file_path):
-        try:
-            with open(file_path, 'r') as myFile:
-                data = myFile.read()
-            return data
-        except FileNotFoundError:
-            filename = file_path.name
-            # Give warning message for missing parameter file. This will not
-            # apply to template files as the template must exist to initialize
-            # the stack class
-            message = "Parameter file ({}) not found. ".format(filename) + \
-                "Stack actions will fail if template does not have " + \
-                "default values defined for all parameters."
-            logger.warning(message)
+        if file_path is not None:
+            try:
+                with open(file_path, 'r') as myFile:
+                    data = myFile.read()
+                return data
+            except FileNotFoundError:
+                filename = file_path.name
+                # Give warning message for missing parameter file. This will not
+                # apply to template files as the template must exist to initialize
+                # the stack class
+                message = "Parameter file ({}) not found. ".format(filename) + \
+                    "Stack actions will fail if template does not have " + \
+                    "default values defined for all parameters."
+                logger.warning(message)
+                return None
+        else:
             return None
         
     def load_template_body(self):
@@ -269,6 +278,7 @@ class AWSCloudFormationStack:
         status = ''
         if action_type == "CREATE":
             self.failure_statuses.append('DELETE_IN_PROGRESS')
+        #TODO - Add a break if possible so this doesn't run forever
         while status not in self.success_statuses and status not in self.failure_statuses and status is not None:
             sleep(self._check_period)
             status = self.get_stack()
@@ -285,7 +295,7 @@ class AWSCloudFormationStack:
                 return "FAILURE"
             elif status is None:
                 logger.info("Stack {} not found.".format(self.stack_name))
-                # This most scenario should not occur, but considering a
+                # This scenario should not occur, but considering a
                 # failure if stack can't be found for CREATE or UPDATE actions
                 return "FAILURE"
             else:

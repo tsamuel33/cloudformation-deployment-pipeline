@@ -8,7 +8,7 @@ import re
 import sys
 
 import boto3
-from botocore.exceptions import ClientError
+from botocore.exceptions import ClientError, NoCredentialsError
 from jsonpath_ng.ext import parse
 import yaml
 
@@ -145,16 +145,25 @@ for tag in tags:
     add_yaml_constructor(tag)
 
 def create_test_file(filepath, data):
-    region_dir = Path(filepath).parents[2]
-    validation_dir = region_dir / "rendered_templates"
+    home_dir = Path(os.environ['HOME'])
+    validation_dir = home_dir / "rendered_templates"
     template_name = filepath.stem
     rendered_path = validation_dir / ".".join((template_name, "json"))
     if not validation_dir.exists():
-        os.mkdir(validation_dir, mode=644)
+        os.mkdir(validation_dir, mode=760)
+    if rendered_path.exists():
+        original_path = rendered_path
+        parent = rendered_path.parent
+        stem = rendered_path.stem
+        rendered_path = parent / "".join((stem, "_1", ".json"))
+        message = "Test file {} ".format(original_path.as_posix()) + \
+            "already exists. Creating new file: {}".format(rendered_path.as_posix())
+        logger.warning(message)
     with open(rendered_path, "w") as file:
         file.write(data)
         logger.info("Created test file: {}".format(rendered_path.as_posix()))
         file.close()
+    return rendered_path
 
 def convert_to_json(data_path):
     with open(data_path, 'r') as template_file:
@@ -348,11 +357,17 @@ def replace_sub(json_path, data, parameters, input, region, partition, account_n
         instances = re.findall(sub_reg, output_string)
         for instance in instances:
             param_name = instance[1]
-            param_value = output_params[param_name]
+            try:
+                param_value = output_params[param_name]
+            except KeyError:
+                param_value = get_ref_value(parameters, param_name, region, partition, account_number, stack_name)
             if isinstance(param_value, (str, int)):
                 pattern = "".join(('(\\${)(', param_name, ')(})'))
                 output_string = re.sub(pattern, param_value, output_string)
-                del output_params[param_name]
+                try:
+                    del output_params[param_name]
+                except KeyError:
+                    logger.info("Skipping replacement of key [{}] from string: {}".format(param_name,output_string))
         if output_params == {}:
             json_path.update(data, output_string)
         else:
@@ -535,6 +550,9 @@ def get_azs(region):
     except ClientError as err:
         logger.info("Unable to get availability zones due to: {}".format(err.response['Error']['Message']))
         return None
+    except NoCredentialsError as err:
+        logger.info("Unable to get availability zones due to: No AWS Credentials Found")
+        return None
 
 def get_cf_exports(region):
     logger.info("Getting exported values from CloudFormation...")
@@ -551,9 +569,12 @@ def get_cf_exports(region):
     except ClientError as err:
         logger.info("Unable to get export values due to: {}".format(err.response['Error']['Message']))
         return None
+    except NoCredentialsError as err:
+        logger.info("Unable to get export values due to: No AWS Credentials Found")
+        return None
 
 
-def main(stack):
+def resolve_template(stack):
     account_number = stack.role_arn.split(":")[4]
     partition = stack.role_arn.split(":")[1]
     region = stack.template_path.parts[-4]
@@ -575,4 +596,5 @@ def main(stack):
     for x in range(0, 3):
         process_values(all_parser, json_data, parameters, region, partition, account_number, stack_name, az_list, cf_exports)
     json_string = json.dumps(json_data, indent=2, default=str)
-    create_test_file(stack.template_path, json_string)
+    rendered_template = create_test_file(stack.template_path, json_string)
+    return rendered_template

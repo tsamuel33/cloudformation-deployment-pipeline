@@ -1,12 +1,15 @@
 import logging
-import subprocess
-from .mappings import Mappings
-from .configuration import Configuration
-from .stack import AWSCloudFormationStack
+import os
 from pathlib import Path
+import subprocess
+
 from git import Repo
 from git.exc import GitCommandError
-from pathlib import Path
+
+from scripts.classes.mappings import Mappings
+from scripts.classes.resolver import resolve_template
+from scripts.classes.stack import AWSCloudFormationStack
+
 
 # Set up logger
 logger = logging.getLogger(Path(__file__).name)
@@ -335,21 +338,42 @@ class PipelineScope:
             code = 0
         else:
             code = subprocess.run(self.lint_commands).returncode
+            if code == 0:
+                logger.info("Linting completed successfully!")
         return code
     
-    def cfn_guard_validate(self):
+    def render_template_with_parameters(self, template_path, account_number, role_name,
+                         check_period, stack_prefix, protection, upload_bucket_name):
+        stack = AWSCloudFormationStack(template_path, self.environment,
+                        account_number, role_name, check_period,
+                        stack_prefix, protection, upload_bucket_name)
+        rendered_template = resolve_template(stack)
+        return rendered_template
+
+    def cfn_guard_validate(self, account_number, role_name, check_period, stack_prefix, protection, upload_bucket_name):
         for template in self.create_list:
+            rendered = self.render_template_with_parameters(template, account_number, role_name,
+                         check_period, stack_prefix, protection, upload_bucket_name)
             self.guard_commands.append("-d")
-            self.guard_commands.append(template.as_posix())
+            self.guard_commands.append(rendered.as_posix())
         for template in self.update_list:
+            rendered = self.render_template_with_parameters(template, account_number, role_name,
+                         check_period, stack_prefix, protection, upload_bucket_name)
             self.guard_commands.append("-d")
-            self.guard_commands.append(template.as_posix())
+            self.guard_commands.append(rendered.as_posix())
         if self.guard_commands[-1] == self.cfn_guard_dir.as_posix():
             logger.info("No templates in scope for validation.")
             code = 0
         else:
             code = subprocess.run(self.guard_commands).returncode
+            if code == 0:
+                logger.info("Validation completed successfully!")
+            print(self.guard_commands)
         return code
+
+    #TODO - add steps to validate using OPA. Ensure Deploy script calls this properly
+    def opa_validate(self, account, role_name, check_period, stack_prefix, protection, upload_bucket_name):
+        logger.info("Placeholder OPA method was initiated successfully")
 
     @staticmethod
     def split_by_env(template_list):
@@ -406,6 +430,7 @@ class PipelineScope:
     def deploy_scope(self, account_number, role_name, check_period=15,
                      stack_prefix=None, protection=False,
                      upload_bucket_name=None):
+        exit_code = 1
         create_result = self.prep_and_deploy(self.create_list, "CREATE",
                                              account_number, role_name,
                                              check_period, stack_prefix,
@@ -425,6 +450,7 @@ class PipelineScope:
         else:
             delete_result = "CANCELED"
         if delete_result == "SUCCESS":
-            return "SUCCESS"
-        else:
-            return "FAILURE"
+            self.update_deployment_checkpoint()
+            logger.info("Deployments completed successfully!")
+            exit_code = 0
+        return exit_code

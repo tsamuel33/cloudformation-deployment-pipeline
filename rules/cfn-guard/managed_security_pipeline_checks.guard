@@ -1,0 +1,142 @@
+let iam_roles = Resources.*[ Type == 'AWS::IAM::Role' ]
+let iam_users = Resources.*[ Type == 'AWS::IAM::User']
+let iam_groups = Resources.*[ Type == 'AWS::IAM::Group']
+let iam_policies = Resources.*[ Type == 'AWS::IAM::Policy']
+let iam_access_keys = Resources.*[ Type == 'AWS::IAM::AccessKey']
+let kms_keys = Resources.*[ Type == 'AWS::KMS::Key']
+let kms_aliases = Resources.*[ Type == 'AWS::KMS::Alias']
+let nacls = Resources.*[ Type == 'AWS::EC2::NetworkAcl']
+let nacl_entries = Resources.*[ Type == 'AWS::EC2::NetworkAclEntry']
+let subnet_nacl_assoc = Resources.*[ Type == 'AWS::EC2::SubnetNetworkAclAssociation']
+
+rule supported_resource_types {
+    Resources.*.Type IN [
+            'AWS::EC2::SecurityGroup',
+            'AWS::EC2::SecurityGroupEgress',
+            'AWS::EC2::SecurityGroupIngress',
+            'AWS::EC2::NetworkAcl',
+            'AWS::EC2::NetworkAclEntry',
+            'AWS::EC2::SubnetNetworkAclAssociation',
+            'AWS::IAM::User',
+            'AWS::IAM::Role',
+            'AWS::IAM::Group',
+            'AWS::IAM::Policy',
+            'AWS::IAM::ManagedPolicy',
+            'AWS::IAM::AccessKey',
+            'AWS::KMS::Key',
+            'AWS::KMS::Alias',
+            'AWS::CloudWatch::Alarm',
+            'AWS::IAM::InstanceProfile',
+            'AWS::Logs::MetricFilter',
+            'AWS::Config::ConfigRule',
+            'AWS::Logs::LogGroup',
+            'AWS::Logs::ResourcePolicy',
+            'AWS::Events::Rule',
+            'AWS::S3::Bucket',
+            'AWS::S3::BucketPolicy',
+            'AWS::CloudFormation::WaitConditionHandle',
+            'AWS::EC2::VPC'
+        ] << Template contains invalid resource type that should be deployed as part of application pipeline >>
+}
+
+rule required_tags when Resources.*.Type IN [ 'AWS::IAM::Role', 'AWS::IAM::User', 'AWS::KMS::Key', 'AWS::EC2::SecurityGroup' ] {
+    Resources.*.Properties.Tags !empty
+    some Resources.*.Properties.Tags[*] {
+            Key == 'secops:tags:managed_by' << Resource should have a key named 'secops:tags:managed_by' >>
+            Value == 'AWS Managed Security Pipeline' << Value of tag should be 'AWS Managed Security Pipeline' >>
+        }
+}
+
+rule required_role_properties when %iam_roles !empty {
+    %iam_roles {
+        Properties {
+            RoleName !empty << Name of role must be defined >>
+            Description !empty << A description of the role must be provided >>
+            Path !empty << The role path must be defined (i.e., '/managed/') >>
+            AssumeRolePolicyDocument !empty << The role's assume role policy document must be defined >>
+        }
+    }
+}
+
+rule required_user_properties when %iam_users !empty {
+    %iam_users {
+        Properties {
+            UserName !empty << Name of user must be defined >>
+            Path !empty << The user path must be defined (i.e., '/managed/') >>
+            Groups !empty << The user must be assigned to a group >>
+        }
+    }
+}
+
+rule required_group_properties when %iam_groups !empty {
+    %iam_groups {
+        Properties {
+            GroupName !empty << Name of group must be defined >>
+            Path !empty << The group path must be defined (i.e., '/managed/') >>
+        }
+    }
+}
+
+rule required_policy_properties when %iam_policies !empty {
+    %iam_policies {
+        Properties {
+            PolicyName !empty << Name of policy must be provided >>
+            PolicyDocument !empty << Policy document must be provided >>
+        }
+    }
+}
+
+rule required_iam_access_key_properties when %iam_access_keys !empty {
+    %iam_access_keys {
+        Properties{
+            UserName !empty << Associated username must be provided for access key >>
+            Status !empty << Access key status must be provided >>
+        }
+    }
+}
+
+rule required_kms_key_properties when %kms_keys !empty {
+    %kms_keys {
+        Properties{
+            Description !empty << Description of KMS key must be provided >>
+            EnableKeyRotation !empty << KMS key rotation must be defined >>
+            Enabled !empty << KMS key enablement must be defined >>
+            KeyPolicy !empty << KMS key policy must be defined >>
+        }
+    }
+}
+
+rule required_kms_alias_properties when %kms_aliases !empty {
+    %kms_aliases {
+        Properties{
+            AliasName !empty << Name of KMS alias must be provided >>
+            TargetKeyId !empty << ID of target KMS key must be provided >>
+        }
+    }
+}
+
+rule required_nacl_properties when %nacls !empty {
+    %nacls {
+        Properties.VpcId !empty << ID of VPC to be associated with NACL must be provided >>
+    }
+}
+
+rule required_nacl_entry_properties when %nacl_entries !empty {
+    %nacl_entries {
+        Properties{
+            NetworkAclId !empty << ID of the NACL to be associated with the entry must be provided >>
+            Protocol !empty << The protocol of the NACL entry must be provided >>
+            RuleAction !empty << The rule action type must be provided >>
+            RuleNumber !empty << A rule number must be provided >>
+        }
+    }
+}
+
+rule required_nacl_subnet_association_properties when %subnet_nacl_assoc !empty {
+    %subnet_nacl_assoc {
+        Properties{
+            NetworkAclId !empty << The NACL ID must be provided for the association >>
+            SubnetId !empty << The subnet ID must be provided for the association >>
+        }
+    }
+}

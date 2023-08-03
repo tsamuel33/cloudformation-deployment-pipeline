@@ -42,16 +42,19 @@ class Mappings:
             return None
 
     def get_mapping_value(self, key, mapping_type):
-        try:
-            value = self.mapping[key]
-            return value
-        except KeyError:
-            if mapping_type == "parameters":
-                message = "Key ({}) not found in mapping ".format(key) + \
-                    "file. Default parameter file location will be used " + \
-                    "if it exists."
-            elif mapping_type == "templates":
-                message = "Key ({}) not found in mapping ".format(key) + \
-                    "file. Default stack naming convention will be used."
-            logger.info(message)
+        if self.mapping is not None:
+            try:
+                value = self.mapping[key]
+                return value
+            except KeyError:
+                if mapping_type == "parameters":
+                    message = "Key ({}) not found in mapping ".format(key) + \
+                        "file. Default parameter file location will be used " + \
+                        "if it exists."
+                elif mapping_type == "templates":
+                    message = "Key ({}) not found in mapping ".format(key) + \
+                        "file. Default stack naming convention will be used."
+                logger.info(message)
+                return None
+        else:
             return None

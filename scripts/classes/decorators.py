@@ -1,6 +1,7 @@
-from botocore.exceptions import ClientError, ParamValidationError
 from functools import wraps
 from sys import exit
+
+from botocore.exceptions import ClientError, ParamValidationError
 
 # Decorator to output Boto3 errors in the format set by the logger so
 # errors are easier to see in the output

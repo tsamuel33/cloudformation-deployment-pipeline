@@ -1,7 +1,10 @@
-import boto3
 import logging
-from .decorators import boto3_error_decorator
 from pathlib import Path
+
+import boto3
+
+from scripts.classes.decorators import boto3_error_decorator
+
 
 # Set up logger
 logger = logging.getLogger(Path(__file__).name)
