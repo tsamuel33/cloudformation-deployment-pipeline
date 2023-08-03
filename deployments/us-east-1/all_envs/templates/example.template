@@ -43,7 +43,7 @@ Resources:
     Type: AWS::IAM::Role
     Properties:
       RoleName: !Ref RoleName
-      # Path: /example/
+      Path: /example/
       Description: Cloud Formation Read-Only Role
       AssumeRolePolicyDocument:
         Version: 2012-10-17
