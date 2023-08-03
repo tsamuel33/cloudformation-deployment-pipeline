@@ -69,9 +69,7 @@ class PipelineScope:
         "cfn-guard",
         "validate",
         "-r",
-        cfn_guard_dir.as_posix(),
-        "-d",
-        Path(os.environ['HOME']).as_posix() + "/rendered_templates"
+        cfn_guard_dir.as_posix()
     ]
 
     def __init__(self, branch, environment) -> None:
@@ -356,19 +354,20 @@ class PipelineScope:
         for template in self.create_list:
             rendered = self.render_template_with_parameters(template, account_number, role_name,
                          check_period, stack_prefix, protection, upload_bucket_name)
-            # self.guard_commands.append("-d")
-            # self.guard_commands.append(rendered.as_posix())
+            self.guard_commands.append("-d")
+            self.guard_commands.append(rendered.as_posix())
         for template in self.update_list:
             rendered = self.render_template_with_parameters(template, account_number, role_name,
                          check_period, stack_prefix, protection, upload_bucket_name)
-            # self.guard_commands.append("-d")
-            # self.guard_commands.append(rendered.as_posix())
+            self.guard_commands.append("-d")
+            self.guard_commands.append(rendered.as_posix())
         if self.guard_commands[-1] == self.cfn_guard_dir.as_posix():
             logger.info("No templates in scope for validation.")
             code = 0
         else:
             code = subprocess.run(self.guard_commands).returncode
-            logger.info("Validation completed successfully!")
+            if code == 0:
+                logger.info("Validation completed successfully!")
             print(self.guard_commands)
         return code
 
