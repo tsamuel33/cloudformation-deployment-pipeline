@@ -99,4 +99,4 @@ Outputs:
     Description: Default Local S3 Server Access Logging Bucket Name
     Value: !Ref ServerAccessLoggingBucket
     Export:
-      Name: S3ServerAccessLoggingBucket
+      Name: DemoExport
