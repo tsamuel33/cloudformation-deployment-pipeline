@@ -113,4 +113,6 @@ jobs:
           SECRET_NAME: ${{ needs.SetConfigVariables.outputs.account_secret_name }}
           ASSUMED_ROLE_NAME: ${{ needs.SetConfigVariables.outputs.assumed_role_name }}
       - name: Deploy Templates
+        env:
+          SECRET_NAME: ${{ needs.SetConfigVariables.outputs.account_secret_name }}
         run: python -m scripts.deploy --branch ${{ github.ref_name }} --account_number ${{ secrets[env.SECRET_NAME] }} --job deploy
