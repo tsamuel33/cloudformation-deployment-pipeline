@@ -211,7 +211,7 @@ class AWSCloudFormationStack:
                     parameterlist.append(entry)
                 except KeyError:
                     logger.error("Required parameter [{}] missing from parameter file and does not have a default value. Aborting operation.".format(param))
-                    exit()
+                    exit(1)
         return parameterlist
 
     @boto3_error_decorator(logger)
