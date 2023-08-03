@@ -100,3 +100,4 @@ Outputs:
     Value: !Ref ServerAccessLoggingBucket
     Export:
       Name: DemoExport
+      Name: S3ServerAccessLoggingBucket
