@@ -55,7 +55,7 @@ jobs:
     environment: ${{ needs.SetConfigVariables.outputs.github_secret_type == 'environment' && needs.SetConfigVariables.outputs.environment || null }}
     env:
       SECRET_NAME: ${{ needs.SetConfigVariables.outputs.account_secret_name }}
-      GUARD_INSTALLATION_TYPE: Script
+      GUARD_INSTALLATION_TYPE: Homebrew
       GUARD_INSTALLATION_VERSION: 3.0.0
     steps:
       - name: Checkout
