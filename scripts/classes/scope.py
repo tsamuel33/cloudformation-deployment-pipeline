@@ -368,6 +368,8 @@ class PipelineScope:
             code = 0
         else:
             code = subprocess.run(self.guard_commands).returncode
+            logger.info("Validation completed successfully!")
+            print(self.guard_commands)
         return code
 
     #TODO - add steps to validate using OPA. Ensure Deploy script calls this properly
