@@ -55,6 +55,8 @@ jobs:
     environment: ${{ needs.SetConfigVariables.outputs.github_secret_type == 'environment' && needs.SetConfigVariables.outputs.environment || null }}
     env:
       SECRET_NAME: ${{ needs.SetConfigVariables.outputs.account_secret_name }}
+      GUARD_INSTALLATION_TYPE: Script
+      GUARD_INSTALLATION_VERSION: 3.0.0
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -66,9 +68,9 @@ jobs:
       #   run: python -m scripts.deploy --branch ${{ github.ref_name }} --job lint
       - name: Install cfn-guard
         if: ${{ needs.SetConfigVariables.outputs.policy_as_code_provider == 'guard' }}
-        run: |
-          /home/linuxbrew/.linuxbrew/bin/brew install cloudformation-guard
-          /home/linuxbrew/.linuxbrew/bin/brew info cloudformation-guard
+        run: ${{ env.GUARD_INSTALLATION_TYPE == 'Homebrew' && '/home/linuxbrew/.linuxbrew/bin/brew install cloudformation-guard' || 'curl --proto ''=https'' --tlsv1.2 -sSf https://raw.githubusercontent.com/aws-cloudformation/cloudformation-guard/main/install-guard.sh | sh' }}
+          # /home/linuxbrew/.linuxbrew/bin/brew install cloudformation-guard
+          # /home/linuxbrew/.linuxbrew/bin/brew info cloudformation-guard
   #         # curl --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/aws-cloudformation/cloudformation-guard/main/install-guard.sh | sh
   #     - name: Install Open Policy Agent
   #       if: ${{ needs.SetConfigVariables.outputs.policy_as_code_provider == 'opa' }}
