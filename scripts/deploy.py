@@ -80,7 +80,8 @@ def main(job):
     elif job == 'deploy':
         deployment_exit_code = deploy(config, pipeline, args['account_number'])
         exit_code = deployment_exit_code
-    exit(exit_code)
+    # Return exit code to GitHub Actions by printing
+    print(exit_code)
 
 if __name__ == "__main__":
     main(args['job'])
