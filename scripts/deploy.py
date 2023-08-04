@@ -71,6 +71,7 @@ def main(job):
         message = "Submitted templates are same as previous" + \
                     " deployment. No actions taken."
         logger.info(message)
+        exit_code = 0
     elif job == 'lint':
         lint_exit_code = lint_templates(pipeline)
         exit_code = lint_exit_code
