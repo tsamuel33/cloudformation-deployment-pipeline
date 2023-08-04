@@ -443,22 +443,31 @@ class PipelineScope:
                      stack_prefix=None, protection=False,
                      upload_bucket_name=None):
         exit_code = 1
-        create_result = self.prep_and_deploy(self.create_list, "CREATE",
-                                             account_number, role_name,
-                                             check_period, stack_prefix,
-                                             protection, upload_bucket_name)
+        if len(self.create_list) > 0:
+            create_result = self.prep_and_deploy(self.create_list, "CREATE",
+                                                account_number, role_name,
+                                                check_period, stack_prefix,
+                                                protection, upload_bucket_name)
+        else:
+            create_result = "SUCCESS"
         if create_result == "SUCCESS":
-            update_result = self.prep_and_deploy(self.update_list, "UPDATE",
+            if len(self.update_list) > 0:
+                update_result = self.prep_and_deploy(self.update_list, "UPDATE",
                                                  account_number, role_name,
                                                  check_period, stack_prefix,
                                                  protection, upload_bucket_name)
+            else:
+                update_result = "SUCCESS"
         else:
             update_result = "CANCELED"
-        if create_result == "SUCCESS" and update_result == "SUCCESS":
-            delete_result = self.prep_and_deploy(self.delete_list, "DELETE",
+        if update_result == "SUCCESS":
+            if len(self.delete_list) > 0:
+                delete_result = self.prep_and_deploy(self.delete_list, "DELETE",
                                                  account_number, role_name,
                                                  check_period, stack_prefix,
                                                  protection, upload_bucket_name)
+            else:
+                delete_result = "SUCCESS"
         else:
             delete_result = "CANCELED"
         if delete_result == "SUCCESS":

@@ -64,7 +64,14 @@ def main(job):
     prep = prepare_to_deploy(job)
     config = prep[0]
     pipeline = prep[1]
-    if job == 'lint':
+    create_length = len(pipeline.create_list)
+    update_length = len(pipeline.update_list)
+    delete_length = len(pipeline.delete_list)
+    if create_length + update_length + delete_length == 0:
+        message = "Submitted templates are same as previous" + \
+                    " deployment. No actions taken."
+        logger.info(message)
+    elif job == 'lint':
         lint_exit_code = lint_templates(pipeline)
         exit_code = lint_exit_code
     elif job == 'validate':
