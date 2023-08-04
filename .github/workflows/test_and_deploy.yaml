@@ -7,13 +7,6 @@ permissions:
       id-token: write
       contents: write
 jobs:
-  # RemoveOldKey:
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #     - name: RemoveKey
-  #       run: |
-  #         # ssh-keygen -R github.com
-  #         curl -L https://api.github.com/meta | jq -r '.ssh_keys | .[]' | sed -e 's/^/github.com /' >> ~/.ssh/known_hosts
   SetConfigVariables:
     runs-on: ubuntu-latest
     steps:
@@ -97,11 +90,8 @@ jobs:
       - name: Policy as Code Validation
         if: needs.SetConfigVariables.outputs.policy_as_code_provider != 'None'
         run: |
-          RESULT=$(python -m scripts.deploy --branch ${{ github.ref_name }} --account_number ${{ needs.SetConfigVariables.outputs.branch_type == 'major' && secrets[env.SECRET_NAME] || '123456789012' }} --job validate)
-          if [ $RESULT -ne 0 ]; then
-            echo "ERROR: See logs for details."
-            exit $RESULT
-          fi
+          python -m scripts.deploy --branch ${{ github.ref_name }} --account_number ${{ needs.SetConfigVariables.outputs.branch_type == 'major' && secrets[env.SECRET_NAME] || '123456789012' }} --job validate
+          
   Deploy:
     runs-on: ubuntu-latest
     needs: [SetConfigVariables, Test]
@@ -127,4 +117,9 @@ jobs:
       - name: Deploy Templates
         env:
           SECRET_NAME: ${{ needs.SetConfigVariables.outputs.account_secret_name }}
-        run: python -m scripts.deploy --branch ${{ github.ref_name }} --account_number ${{ secrets[env.SECRET_NAME] }} --job deploy
+        run: |
+          RESULT=$(python -m scripts.deploy --branch ${{ github.ref_name }} --account_number ${{ secrets[env.SECRET_NAME] }} --job deploy)
+          if [ $RESULT -ne 0 ]; then
+            echo "ERROR: See logs for details."
+            exit $RESULT
+          fi

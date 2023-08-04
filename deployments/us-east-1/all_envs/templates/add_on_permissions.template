@@ -20,4 +20,3 @@ Resources:
               - !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/TravisCFReadOnly"
       Roles:
         - 'GitHubActionsExecutionRole'
-        alkjdfalkj
