@@ -126,7 +126,7 @@ class PipelineScope:
         # If tag not found locally, check against the remote repo
         if retry:
             try:
-                self.__repo.git.pull("--tags")
+                self.__repo.git.fetch("--tags", "--force")
                 commit = self.__repo.tag(target_tag).commit
             except ValueError as err:
                 if err.args[0] == "Reference at " + \
