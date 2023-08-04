@@ -1,12 +1,19 @@
 name: Test and Deploy CloudFormation Templates
 on:
   push:
-    paths:
-      - 'deployments/*'
+    # paths:
+    #   - 'deployments/*'
 permissions:
       id-token: write
       contents: write
 jobs:
+  # RemoveOldKey:
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - name: RemoveKey
+  #       run: |
+  #         # ssh-keygen -R github.com
+  #         curl -L https://api.github.com/meta | jq -r '.ssh_keys | .[]' | sed -e 's/^/github.com /' >> ~/.ssh/known_hosts
   SetConfigVariables:
     runs-on: ubuntu-latest
     steps:
