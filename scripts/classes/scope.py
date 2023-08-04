@@ -112,18 +112,30 @@ class PipelineScope:
         return environments
 
     def get_last_deployment_commit(self, target_tag):
+        retry = False
+        commit = None
+        # Look for target tag in local repo
         try:
             commit = self.__repo.tag(target_tag).commit
         except ValueError as err:
             if err.args[0] == "Reference at " + \
                 "'refs/tags/{}' does not exist".format(target_tag):
-                message = "Tag '{}' does not exist. ".format(target_tag) + \
-                    "Pipeline will attempt to deploy all relevant " + \
-                    "CloudFormation stacks."
-                logger.warning(message)
-            commit = None
-        finally:
-            return commit
+                retry = True
+            else:
+                raise err
+        # If tag not found locally, check against the remote repo
+        if retry:
+            try:
+                self.__repo.git.pull("--tags")
+                commit = self.__repo.tag(target_tag).commit
+            except ValueError as err:
+                if err.args[0] == "Reference at " + \
+                    "'refs/tags/{}' does not exist".format(target_tag):
+                    message = "Tag '{}' does not exist. ".format(target_tag) + \
+                        "Pipeline will attempt to deploy all relevant " + \
+                        "CloudFormation stacks."
+                    logger.warning(message)
+        return commit
 
     def create_new_tag(self, target_tag, commit):
         logger.info("Tagging commit...")
