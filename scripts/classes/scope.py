@@ -235,14 +235,16 @@ class PipelineScope:
         return target_envs
 
     def append_file(self, change_type, template_file_path):
-        data = self.load_file(template_file_path)
-        if data is not None:
-            if change_type == "A" and template_file_path not in self.create_list:
-                self.create_list.append(template_file_path)
-            elif change_type in ["M", "R"] and template_file_path not in self.update_list:
-                self.update_list.append(template_file_path)
-            elif change_type == "D" and template_file_path not in self.delete_list:
-                self.delete_list.append(template_file_path)
+        if change_type == "D" and template_file_path not in self.delete_list:
+            self.delete_list.append(template_file_path)
+        else:
+            data = self.load_file(template_file_path)
+            if data is not None:
+                if change_type == "A" and template_file_path not in self.create_list:
+                    self.create_list.append(template_file_path)
+                elif change_type in ["M", "R"] and template_file_path not in self.update_list:
+                    self.update_list.append(template_file_path)
+            
 
     def get_template_for_param_mapping(self, param_file_path):
         template_path = None
