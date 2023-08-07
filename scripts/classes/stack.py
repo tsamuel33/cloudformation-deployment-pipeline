@@ -123,20 +123,24 @@ class AWSCloudFormationStack:
     def get_parameter_file_path(self, environment, all_envs=True):
         # Set up default names
         prefix = self.template_path.stem
-        filename = self.template_path.name
+        template_filename = self.template_path.name
+        param_dir = self.template_path.parents[1] / "parameters"
         if all_envs:
             default_name = ".".join((prefix, environment, "json"))
         else:
             default_name = ".".join((prefix, "json"))
         # Attempt to get name from mapping file. Use default if name is not found
+        name = None
         if self._parameter_mapping.mapping is not None:
-            name = self._parameter_mapping.get_mapping_value(filename, "parameters")
-            if name is None:
-                name = default_name
-            param_dir = self.template_path.parents[1] / "parameters"
-            path = param_dir / name
+            name = self._parameter_mapping.get_mapping_value(template_filename, "parameters")
+        if name is None:
+            name = default_name
+        path = param_dir / name
+        if path.exists():
             return path
         else:
+            message = "Parameter file [{}] not found for template: {}".format(path.as_posix(),template_filename)
+            logger.warning(message)
             return None
 
     @staticmethod
