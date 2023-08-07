@@ -158,14 +158,12 @@ class AWSCloudFormationStack:
         
     def load_template_body(self):
         body = self.load_file(self.template_path)
-        self._cf.validate_template(TemplateBody=body)
         return body
 
     def upload_template(self):
         logger.info('{} file size is larger than quota. Uploading to {}'.format(self.template_path.name, self._upload_bucket.bucket_name))
         self._upload_bucket.upload_file(self.template_path)
         object_url = "".join(("https://", self._upload_bucket.bucket_name, ".s3.amazonaws.com/", self.template_path.name))
-        self._cf.validate_template(TemplateURL=object_url)
         return object_url
 
     def create_parameter_list(self):
