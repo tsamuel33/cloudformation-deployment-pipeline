@@ -81,8 +81,11 @@ class AWSCloudFormationStack:
         self.rename_logger(folder)
         self.parameter_path = self.get_parameter_file_path(environment, all_envs)
         self.stack_name = self.determine_stack_name(stack_prefix)
-        self.parameters = self.create_parameter_list()
-        self.size = Path(self.template_path).stat().st_size
+        if template_file_path.exists():
+            self.parameters = self.create_parameter_list()
+            self.size = Path(self.template_path).stat().st_size
+        else:
+            self.size = 0
         self._cf = boto3.client('cloudformation', region_name=region)
         if self.size > 51200:
             self._upload_bucket = AWSS3UploadBucket(region, upload_bucket_name)
@@ -303,7 +306,7 @@ class AWSCloudFormationStack:
     def create_stack(self):
         logger.info("Creating stack: {}".format(self.stack_name))
         try:
-            if self.size < 51200:
+            if 0 < self.size <= 51200:
                 body = self.load_template_body()
                 createTemplateResponse = self._cf.create_stack(
                     StackName=self.stack_name,
@@ -348,7 +351,7 @@ class AWSCloudFormationStack:
     def update_stack(self):
         logger.info("Updating stack: {}".format(self.stack_name))
         try:
-            if self.size < 51200:
+            if 0 < self.size <= 51200:
                 body = self.load_template_body()
                 stackUpdateResponse = self._cf.update_stack(
                     StackName=self.stack_name,
@@ -404,7 +407,7 @@ class AWSCloudFormationStack:
     def create_change_set(self):
         logger.info("Creating change set for stack: {}".format(self.stack_name))
         try:
-            if self.size < 51200:
+            if 0 < self.size <= 51200:
                 body = self.load_template_body()
                 response = self._cf.create_change_set(
                     StackName=self.stack_name,
