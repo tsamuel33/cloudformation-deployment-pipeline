@@ -27,7 +27,8 @@ class PipelineScope:
         ".yaml",
         ".yml",
         ".template",
-        ".json"
+        ".json",
+        ".jsn"
     ]
     valid_regions = [
         "af-south-1",
@@ -112,18 +113,30 @@ class PipelineScope:
         return environments
 
     def get_last_deployment_commit(self, target_tag):
+        retry = False
+        commit = None
+        # Look for target tag in local repo
         try:
             commit = self.__repo.tag(target_tag).commit
         except ValueError as err:
             if err.args[0] == "Reference at " + \
                 "'refs/tags/{}' does not exist".format(target_tag):
-                message = "Tag '{}' does not exist. ".format(target_tag) + \
-                    "Pipeline will attempt to deploy all relevant " + \
-                    "CloudFormation stacks."
-                logger.warning(message)
-            commit = None
-        finally:
-            return commit
+                retry = True
+            else:
+                raise err
+        # If tag not found locally, check against the remote repo
+        if retry:
+            try:
+                self.__repo.git.fetch("--tags", "--force")
+                commit = self.__repo.tag(target_tag).commit
+            except ValueError as err:
+                if err.args[0] == "Reference at " + \
+                    "'refs/tags/{}' does not exist".format(target_tag):
+                    message = "Tag '{}' does not exist. ".format(target_tag) + \
+                        "Pipeline will attempt to deploy all relevant " + \
+                        "CloudFormation stacks."
+                    logger.warning(message)
+        return commit
 
     def create_new_tag(self, target_tag, commit):
         logger.info("Tagging commit...")
@@ -223,14 +236,16 @@ class PipelineScope:
         return target_envs
 
     def append_file(self, change_type, template_file_path):
-        data = self.load_file(template_file_path)
-        if data is not None:
-            if change_type == "A" and template_file_path not in self.create_list:
-                self.create_list.append(template_file_path)
-            elif change_type in ["M", "R"] and template_file_path not in self.update_list:
-                self.update_list.append(template_file_path)
-            elif change_type == "D" and template_file_path not in self.delete_list:
-                self.delete_list.append(template_file_path)
+        if change_type == "D" and template_file_path not in self.delete_list:
+            self.delete_list.append(template_file_path)
+        else:
+            data = self.load_file(template_file_path)
+            if data is not None:
+                if change_type == "A" and template_file_path not in self.create_list:
+                    self.create_list.append(template_file_path)
+                elif change_type in ["M", "R"] and template_file_path not in self.update_list:
+                    self.update_list.append(template_file_path)
+            
 
     def get_template_for_param_mapping(self, param_file_path):
         template_path = None
@@ -431,22 +446,31 @@ class PipelineScope:
                      stack_prefix=None, protection=False,
                      upload_bucket_name=None):
         exit_code = 1
-        create_result = self.prep_and_deploy(self.create_list, "CREATE",
-                                             account_number, role_name,
-                                             check_period, stack_prefix,
-                                             protection, upload_bucket_name)
+        if len(self.create_list) > 0:
+            create_result = self.prep_and_deploy(self.create_list, "CREATE",
+                                                account_number, role_name,
+                                                check_period, stack_prefix,
+                                                protection, upload_bucket_name)
+        else:
+            create_result = "SUCCESS"
         if create_result == "SUCCESS":
-            update_result = self.prep_and_deploy(self.update_list, "UPDATE",
+            if len(self.update_list) > 0:
+                update_result = self.prep_and_deploy(self.update_list, "UPDATE",
                                                  account_number, role_name,
                                                  check_period, stack_prefix,
                                                  protection, upload_bucket_name)
+            else:
+                update_result = "SUCCESS"
         else:
             update_result = "CANCELED"
-        if create_result == "SUCCESS" and update_result == "SUCCESS":
-            delete_result = self.prep_and_deploy(self.delete_list, "DELETE",
+        if update_result == "SUCCESS":
+            if len(self.delete_list) > 0:
+                delete_result = self.prep_and_deploy(self.delete_list, "DELETE",
                                                  account_number, role_name,
                                                  check_period, stack_prefix,
                                                  protection, upload_bucket_name)
+            else:
+                delete_result = "SUCCESS"
         else:
             delete_result = "CANCELED"
         if delete_result == "SUCCESS":

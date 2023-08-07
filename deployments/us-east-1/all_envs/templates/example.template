@@ -57,7 +57,7 @@ Resources:
               StringEquals:
                 'SAML:aud': 'https://signin.aws.amazon.com/saml'
       Tags:
-        - Key: "Greeting"
+        - Key: "Greetings"
           Value: !FindInMap [ExampleMap, Level1, Value]
         - Key: "EncodedTag"
           Value: !Base64 IAmEncoded

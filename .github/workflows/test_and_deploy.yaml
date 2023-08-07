@@ -1,8 +1,8 @@
 name: Test and Deploy CloudFormation Templates
 on:
   push:
-    # paths:
-    #   - 'deployments/*'
+    paths:
+      - 'deployments/**'
 permissions:
       id-token: write
       contents: write
@@ -115,4 +115,9 @@ jobs:
       - name: Deploy Templates
         env:
           SECRET_NAME: ${{ needs.SetConfigVariables.outputs.account_secret_name }}
-        run: python -m scripts.deploy --branch ${{ github.ref_name }} --account_number ${{ secrets[env.SECRET_NAME] }} --job deploy
+        run: |
+          RESULT=$(python -m scripts.deploy --branch ${{ github.ref_name }} --account_number ${{ secrets[env.SECRET_NAME] }} --job deploy)
+          if [ $RESULT -ne 0 ]; then
+            echo "ERROR: See logs for details."
+            exit $RESULT
+          fi
