@@ -1,0 +1,6 @@
+{
+    "SGCidr": "10.64.0.0/16",
+    "Suffix": "22",
+    "IngressProtocol": "6",
+    "Prefix": "Prod"
+}
