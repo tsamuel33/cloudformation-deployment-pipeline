@@ -27,7 +27,8 @@ class PipelineScope:
         ".yaml",
         ".yml",
         ".template",
-        ".json"
+        ".json",
+        ".jsn"
     ]
     valid_regions = [
         "af-south-1",
