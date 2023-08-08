@@ -156,7 +156,9 @@ def create_test_file(stack_name, data):
         stem = rendered_path.stem
         rendered_path = parent / "".join((stem, "_1", ".json"))
         message = "Test file {} ".format(original_path.as_posix()) + \
-            "already exists. Creating new file: {}".format(rendered_path.as_posix())
+            "already exists. There may be conflicting templates " + \
+            "for stack: {}. Creating".format(stack_name) + \
+            " new file: {}".format(stack_name,rendered_path.as_posix())
         logger.warning(message)
     with open(rendered_path, "w") as file:
         file.write(data)
@@ -434,10 +436,9 @@ def replace_and(json_path, data, input):
 def replace_equals(json_path, data, input):
     proceed = False
     if isinstance(input, list) and len(input) == 2:
-        if type(input[0]) == type(input[1]):
             proceed = True
     if proceed:
-        if input[0] == input[1]:
+        if str(input[0]) == str(input[1]):
             value = True
         else:
             value = False
