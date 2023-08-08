@@ -144,11 +144,10 @@ tags = [
 for tag in tags:
     add_yaml_constructor(tag)
 
-def create_test_file(filepath, data):
+def create_test_file(stack_name, data):
     home_dir = Path(os.environ['HOME'])
     validation_dir = home_dir / "rendered_templates"
-    template_name = filepath.stem
-    rendered_path = validation_dir / ".".join((template_name, "json"))
+    rendered_path = validation_dir / ".".join((stack_name, "json"))
     if not validation_dir.exists():
         os.mkdir(validation_dir, mode=760)
     if rendered_path.exists():
@@ -596,5 +595,5 @@ def resolve_template(stack):
     for x in range(0, 3):
         process_values(all_parser, json_data, parameters, region, partition, account_number, stack_name, az_list, cf_exports)
     json_string = json.dumps(json_data, indent=2, default=str)
-    rendered_template = create_test_file(stack.template_path, json_string)
+    rendered_template = create_test_file(stack_name, json_string)
     return rendered_template
