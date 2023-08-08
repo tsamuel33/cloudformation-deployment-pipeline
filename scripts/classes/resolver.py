@@ -571,7 +571,12 @@ def get_cf_exports(region):
     except NoCredentialsError as err:
         logger.info("Unable to get export values due to: No AWS Credentials Found")
         return None
-
+    
+def remove_resources_with_false_condition(data):
+    resource_parser = parse("$.Resources.*")
+    removal_targets = [str(match.full_path) for match in resource_parser.find(data) if (isinstance(match.value, bool) and match.value is False)]
+    for resource in removal_targets:
+        parse(resource).filter(lambda x: not x, data)
 
 def resolve_template(stack):
     account_number = stack.role_arn.split(":")[4]
@@ -594,6 +599,7 @@ def resolve_template(stack):
     # Process data multiple times to process previously unrendered data
     for x in range(0, 3):
         process_values(all_parser, json_data, parameters, region, partition, account_number, stack_name, az_list, cf_exports)
+    remove_resources_with_false_condition(json_data)
     json_string = json.dumps(json_data, indent=2, default=str)
     rendered_template = create_test_file(stack_name, json_string)
     return rendered_template
