@@ -144,11 +144,10 @@ tags = [
 for tag in tags:
     add_yaml_constructor(tag)
 
-def create_test_file(filepath, data):
+def create_test_file(stack_name, data):
     home_dir = Path(os.environ['HOME'])
     validation_dir = home_dir / "rendered_templates"
-    template_name = filepath.stem
-    rendered_path = validation_dir / ".".join((template_name, "json"))
+    rendered_path = validation_dir / ".".join((stack_name, "json"))
     if not validation_dir.exists():
         os.mkdir(validation_dir, mode=760)
     if rendered_path.exists():
@@ -157,7 +156,9 @@ def create_test_file(filepath, data):
         stem = rendered_path.stem
         rendered_path = parent / "".join((stem, "_1", ".json"))
         message = "Test file {} ".format(original_path.as_posix()) + \
-            "already exists. Creating new file: {}".format(rendered_path.as_posix())
+            "already exists. There may be conflicting templates " + \
+            "for stack: {}. Creating".format(stack_name) + \
+            " new file: {}".format(stack_name,rendered_path.as_posix())
         logger.warning(message)
     with open(rendered_path, "w") as file:
         file.write(data)
@@ -435,10 +436,9 @@ def replace_and(json_path, data, input):
 def replace_equals(json_path, data, input):
     proceed = False
     if isinstance(input, list) and len(input) == 2:
-        if type(input[0]) == type(input[1]):
             proceed = True
     if proceed:
-        if input[0] == input[1]:
+        if str(input[0]) == str(input[1]):
             value = True
         else:
             value = False
@@ -572,7 +572,12 @@ def get_cf_exports(region):
     except NoCredentialsError as err:
         logger.info("Unable to get export values due to: No AWS Credentials Found")
         return None
-
+    
+def remove_resources_with_false_condition(data):
+    resource_parser = parse("$.Resources.*")
+    removal_targets = [str(match.full_path) for match in resource_parser.find(data) if (isinstance(match.value, bool) and match.value is False)]
+    for resource in removal_targets:
+        parse(resource).filter(lambda x: not x, data)
 
 def resolve_template(stack):
     account_number = stack.role_arn.split(":")[4]
@@ -595,6 +600,7 @@ def resolve_template(stack):
     # Process data multiple times to process previously unrendered data
     for x in range(0, 3):
         process_values(all_parser, json_data, parameters, region, partition, account_number, stack_name, az_list, cf_exports)
+    remove_resources_with_false_condition(json_data)
     json_string = json.dumps(json_data, indent=2, default=str)
-    rendered_template = create_test_file(stack.template_path, json_string)
+    rendered_template = create_test_file(stack_name, json_string)
     return rendered_template
