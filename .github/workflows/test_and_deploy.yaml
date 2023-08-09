@@ -20,6 +20,7 @@ jobs:
     uses: tsamuel33/cloudformation-deployment-action/.github/workflows/test_and_deploy.yaml@feature/local-testing
     with:
       job_type: lint
+      aws-partition: aws
     # runs-on: ubuntu-latest
   # SetConfigVariables:
   #   runs-on: ubuntu-latest
