@@ -42,6 +42,8 @@ jobs:
       assumed_role_name: ${{ needs.SetUp.outputs.assumed_role_name }}
       config_file_path: config
       deployment_folder_path: deployments
+      rules_repo: tsamuel33/cloudformation-deployment-action
+      rules_folder_path: rules/cfn-guard
     secrets:
       ACCOUNT_NUMBER: ${{ secrets[needs.SetUp.outputs.account_secret_name] }}
   # Test:
