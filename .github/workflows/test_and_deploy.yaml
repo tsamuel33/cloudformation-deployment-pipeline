@@ -32,8 +32,10 @@ jobs:
     with:
       job_type: validate
       aws_partition: aws
+    env:
+      SECRET_NAME: ${{ needs.Set_Up.outputs.account_secret_name }}
     secrets:
-      ACCOUNT_NUMBER: ${{ secrets[needs.Set_Up.outputs.account_secret_name]}}
+      ACCOUNT_NUMBER: ${{ secrets[env.SECRET_NAME]}}
     # runs-on: ubuntu-latest
   # SetConfigVariables:
   #   runs-on: ubuntu-latest
