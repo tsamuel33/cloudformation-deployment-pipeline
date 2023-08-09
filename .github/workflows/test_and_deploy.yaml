@@ -16,7 +16,13 @@ jobs:
   #       uses: tsamuel33/cloudformation-deployment-action@feature/local-testing
   #       with:
   #         job_type: lint
-  SetupAndLint:
+  Lint:
+    uses: tsamuel33/cloudformation-deployment-action/.github/workflows/test_and_deploy.yaml@feature/local-testing
+    with:
+      job_type: lint
+      aws-partition: aws
+  Validate:
+    needs: Lint
     uses: tsamuel33/cloudformation-deployment-action/.github/workflows/test_and_deploy.yaml@feature/local-testing
     with:
       job_type: lint
