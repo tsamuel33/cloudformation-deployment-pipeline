@@ -16,7 +16,7 @@ jobs:
   #       uses: tsamuel33/cloudformation-deployment-action@feature/local-testing
   #       with:
   #         job_type: lint
-  Set_Up:
+  SetUp:
     uses: tsamuel33/cloudformation-deployment-action/.github/workflows/test_and_deploy.yaml@feature/local-testing
     with:
       job_type: setup
@@ -26,13 +26,13 @@ jobs:
   #     job_type: lint
   #     aws_partition: aws
   # Validate:
-  #   needs: Set_Up
+  #   needs: SetUp
   #   uses: tsamuel33/cloudformation-deployment-action/.github/workflows/test_and_deploy.yaml@feature/local-testing
   #   with:
   #     job_type: validate
   #     aws_partition: aws
   #   # env:
-  #   #   SECRET_NAME: ${{ needs.Set_Up.outputs.account_secret_name }}
+  #   #   SECRET_NAME: ${{ needs.SetUp.outputs.account_secret_name }}
   #   secrets: inherit
     #   ACCOUNT_NUMBER: ${{ secrets[env.SECRET_NAME] }}
     # runs-on: ubuntu-latest
