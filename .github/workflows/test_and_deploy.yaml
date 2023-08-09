@@ -35,7 +35,7 @@ jobs:
     env:
       SECRET_NAME: ${{ needs.Set_Up.outputs.account_secret_name }}
     secrets:
-      ACCOUNT_NUMBER: ${{ secrets[env.SECRET_NAME]}}
+      ACCOUNT_NUMBER: ${{ secrets.${{ env.SECRET_NAME }} }}
     # runs-on: ubuntu-latest
   # SetConfigVariables:
   #   runs-on: ubuntu-latest
