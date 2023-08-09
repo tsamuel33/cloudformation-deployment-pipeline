@@ -25,7 +25,7 @@ jobs:
     needs: Lint
     uses: tsamuel33/cloudformation-deployment-action/.github/workflows/test_and_deploy.yaml@feature/local-testing
     with:
-      job_type: lint
+      job_type: validate
       aws_partition: aws
     # runs-on: ubuntu-latest
   # SetConfigVariables:
