@@ -16,17 +16,24 @@ jobs:
   #       uses: tsamuel33/cloudformation-deployment-action@feature/local-testing
   #       with:
   #         job_type: lint
-  Lint:
+  Set_Up:
     uses: tsamuel33/cloudformation-deployment-action/.github/workflows/test_and_deploy.yaml@feature/local-testing
     with:
-      job_type: lint
+      job_type: setup
       aws_partition: aws
+  # Lint:
+  #   uses: tsamuel33/cloudformation-deployment-action/.github/workflows/test_and_deploy.yaml@feature/local-testing
+  #   with:
+  #     job_type: lint
+  #     aws_partition: aws
   Validate:
-    needs: Lint
+    needs: Set_Up
     uses: tsamuel33/cloudformation-deployment-action/.github/workflows/test_and_deploy.yaml@feature/local-testing
     with:
       job_type: validate
       aws_partition: aws
+    secrets:
+      ACCOUNT_NUMBER: ${{ secrets[needs.Set_Up.outputs.account_secret_name]}}
     # runs-on: ubuntu-latest
   # SetConfigVariables:
   #   runs-on: ubuntu-latest
