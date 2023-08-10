@@ -1,8 +1,8 @@
 name: Test and Deploy CloudFormation Templates
 on:
   push:
-    # paths:
-    #   - 'deployments/**'
+    paths:
+      - 'deployments/**'
 
 permissions:
   id-token: write
@@ -29,7 +29,6 @@ jobs:
       deployment_folder_path: deployments
   Validate:
     needs: [SetUp, Lint]
-    # needs: SetUp
     uses: tsamuel33/cloudformation-deployment-action/.github/workflows/test_and_deploy.yaml@feature/local-testing
     with:
       job_type: Validate
