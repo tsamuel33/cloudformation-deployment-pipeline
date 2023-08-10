@@ -65,7 +65,7 @@ Resources:
           Value: 'AWS Managed Security Pipeline'
 
   VPC:
-    Type: AWS::EC2::VPC
+    Type: AWS::EC2::VPC_FAKE_RESOURCE_TYPE
     Properties:
       CidrBlock: !Ref SGCidr
       EnableDnsHostnames: true
