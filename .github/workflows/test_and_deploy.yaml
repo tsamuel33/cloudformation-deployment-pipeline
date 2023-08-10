@@ -14,22 +14,22 @@ jobs:
     with:
       job_type: Setup
       config_file_path: config
-  # Lint:
-  #   needs: SetUp
-  #   uses: tsamuel33/cloudformation-deployment-action/.github/workflows/test_and_deploy.yaml@feature/local-testing
-  #   with:
-  #     job_type: Lint
-  #     branch_type: ${{ needs.SetUp.outputs.branch_type }}
-  #     github_secret_type: ${{ needs.SetUp.outputs.github_secret_type }}
-  #     policy_as_code_provider: ${{ needs.SetUp.outputs.policy_as_code_provider }}
-  #     account_secret_name: ${{ needs.SetUp.outputs.account_secret_name }}
-  #     environment: ${{ needs.SetUp.outputs.environment }}
-  #     assumed_role_name: ${{ needs.SetUp.outputs.assumed_role_name }}
-  #     config_file_path: config
-  #     deployment_folder_path: deployments
-  Validate:
-    # needs: [SetUp, Lint]
+  Lint:
     needs: SetUp
+    uses: tsamuel33/cloudformation-deployment-action/.github/workflows/test_and_deploy.yaml@feature/local-testing
+    with:
+      job_type: Lint
+      branch_type: ${{ needs.SetUp.outputs.branch_type }}
+      github_secret_type: ${{ needs.SetUp.outputs.github_secret_type }}
+      policy_as_code_provider: ${{ needs.SetUp.outputs.policy_as_code_provider }}
+      account_secret_name: ${{ needs.SetUp.outputs.account_secret_name }}
+      environment: ${{ needs.SetUp.outputs.environment }}
+      assumed_role_name: ${{ needs.SetUp.outputs.assumed_role_name }}
+      config_file_path: config
+      deployment_folder_path: deployments
+  Validate:
+    needs: [SetUp, Lint]
+    # needs: SetUp
     uses: tsamuel33/cloudformation-deployment-action/.github/workflows/test_and_deploy.yaml@feature/local-testing
     with:
       job_type: Validate
