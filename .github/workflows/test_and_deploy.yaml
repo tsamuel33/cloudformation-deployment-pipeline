@@ -1,8 +1,8 @@
 name: Test and Deploy CloudFormation Templates
 on:
   push:
-    paths:
-      - 'deployments/**'
+    # paths:
+    #   - 'deployments/**'
 
 permissions:
   id-token: write
@@ -10,9 +10,8 @@ permissions:
 
 jobs:
   SetUp:
-    uses: tsamuel33/cloudformation-deployment-action/.github/workflows/test_and_deploy.yaml@feature/local-testing
+    uses: tsamuel33/cloudformation-deployment-action/.github/workflows/get_settings.yaml@feature/local-testing
     with:
-      job_type: Setup
       config_file_path: config
   Lint:
     needs: SetUp
@@ -22,9 +21,9 @@ jobs:
       branch_type: ${{ needs.SetUp.outputs.branch_type }}
       github_secret_type: ${{ needs.SetUp.outputs.github_secret_type }}
       policy_as_code_provider: ${{ needs.SetUp.outputs.policy_as_code_provider }}
-      account_secret_name: ${{ needs.SetUp.outputs.account_secret_name }}
-      environment: ${{ needs.SetUp.outputs.environment }}
-      assumed_role_name: ${{ needs.SetUp.outputs.assumed_role_name }}
+      account_number_secret_name: ${{ needs.SetUp.outputs.account_number_secret_name }}
+      github_environment: ${{ needs.SetUp.outputs.github_environment }}
+      github_assumed_role_name: ${{ needs.SetUp.outputs.github_assumed_role_name }}
       config_file_path: config
       deployment_folder_path: deployments
   Validate:
@@ -36,30 +35,31 @@ jobs:
       branch_type: ${{ needs.SetUp.outputs.branch_type }}
       github_secret_type: ${{ needs.SetUp.outputs.github_secret_type }}
       policy_as_code_provider: ${{ needs.SetUp.outputs.policy_as_code_provider }}
-      account_secret_name: ${{ needs.SetUp.outputs.account_secret_name }}
-      environment: ${{ needs.SetUp.outputs.environment }}
-      assumed_role_name: ${{ needs.SetUp.outputs.assumed_role_name }}
+      account_number_secret_name: ${{ needs.SetUp.outputs.account_number_secret_name }}
+      github_environment: ${{ needs.SetUp.outputs.github_environment }}
+      github_assumed_role_name: ${{ needs.SetUp.outputs.github_assumed_role_name }}
       config_file_path: config
       deployment_folder_path: deployments
       rules_repo: tsamuel33/policy-as-code-rules
       rules_folder_path: rules/cfn-guard
       aws_region: us-east-1
     secrets:
-      ACCOUNT_NUMBER: ${{ secrets[needs.SetUp.outputs.account_secret_name] }}
+      ACCOUNT_NUMBER: ${{ secrets[needs.SetUp.outputs.account_number_secret_name] }}
   Deploy:
     needs: [SetUp, Validate]
     uses: tsamuel33/cloudformation-deployment-action/.github/workflows/test_and_deploy.yaml@feature/local-testing
+    if: needs.SetUp.outputs.branch_type == 'major' && github.event_name == 'push'
     with:
       job_type: Deploy
       aws_partition: aws
       branch_type: ${{ needs.SetUp.outputs.branch_type }}
       github_secret_type: ${{ needs.SetUp.outputs.github_secret_type }}
       policy_as_code_provider: ${{ needs.SetUp.outputs.policy_as_code_provider }}
-      account_secret_name: ${{ needs.SetUp.outputs.account_secret_name }}
-      environment: ${{ needs.SetUp.outputs.environment }}
-      assumed_role_name: ${{ needs.SetUp.outputs.assumed_role_name }}
+      account_number_secret_name: ${{ needs.SetUp.outputs.account_number_secret_name }}
+      github_environment: ${{ needs.SetUp.outputs.github_environment }}
+      github_assumed_role_name: ${{ needs.SetUp.outputs.github_assumed_role_name }}
       config_file_path: config
       deployment_folder_path: deployments
       aws_region: 'us-east-1'
     secrets:
-      ACCOUNT_NUMBER: ${{ secrets[needs.SetUp.outputs.account_secret_name] }}
+      ACCOUNT_NUMBER: ${{ secrets[needs.SetUp.outputs.account_number_secret_name] }}
