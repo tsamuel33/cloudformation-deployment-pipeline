@@ -16,6 +16,8 @@ jobs:
     steps:
       - name: Output
         run: echo ${{ github.event }}
+      - name: Event Path
+        run: echo ${{ github.event_path }}
   # SetUp:
   #   uses: tsamuel33/cloudformation-deployment-action/.github/workflows/get_settings.yaml@feature/local-testing
   #   with:
