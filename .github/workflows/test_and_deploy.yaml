@@ -14,12 +14,8 @@ jobs:
   PrintEvent:
     runs-on: ubuntu-latest
     steps:
-      - name: Base Ref (expecting dev)
-        run: echo ${{ github.base_ref }}
-      - name: Head Ref (expecting change-sets)
-        run: echo ${{ github.head_ref }}
-      - name: Print Event Name
-        run: echo ${{ github.event_name }}
+      - name: Checkout
+        uses: actions/checkout@v3
       - name: Check if GH CLI is installed
         run: gh pr list
         env:
