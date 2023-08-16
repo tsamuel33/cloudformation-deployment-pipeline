@@ -17,7 +17,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
       - name: Check if GH CLI is installed
-        run: gh pr list
+        run: python -m scripts.list_pr
         env:
           GH_TOKEN: ${{ github.token }}
       
