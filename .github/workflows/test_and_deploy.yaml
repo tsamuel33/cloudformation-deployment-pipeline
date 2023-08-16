@@ -22,6 +22,8 @@ jobs:
         run: echo ${{ github.event_name }}
       - name: Check if GH CLI is installed
         run: gh pr list
+        env:
+          GH_TOKEN: ${{ github.token }}
       
   # SetUp:
   #   uses: tsamuel33/cloudformation-deployment-action/.github/workflows/get_settings.yaml@feature/local-testing
