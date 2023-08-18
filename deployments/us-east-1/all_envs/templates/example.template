@@ -92,8 +92,8 @@ Resources:
       GroupId: !Ref DefaultSecurityGroup
       CidrIp: !Ref SGCidr
       IpProtocol: !Ref IngressProtocol
-      FromPort: !If [AllTraffic, !Ref AWS::NoValue, 443]
-      ToPort: !If [AllTraffic, !Ref AWS::NoValue, 443]
+      FromPort: !If [AllTraffic, !Ref AWS::NoValue, 8443]
+      ToPort: !If [AllTraffic, !Ref AWS::NoValue, 8443]
       Description: 'Allow outbound traffic to Loopback address only'
   AllowInboundTrafficFromLoopback:
     Condition: OrExample
