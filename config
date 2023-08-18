@@ -16,6 +16,7 @@ lowest_branch = dev
 environment = dev
 account_number_secret_name = DEV_AWS_ACCOUNT_NUMBER
 policy_as_code_provider = guard
+change_set_before_deploy = True
 
 [test]
 environment = test
