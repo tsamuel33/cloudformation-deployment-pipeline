@@ -66,8 +66,6 @@ jobs:
       aws_region: 'us-east-1'
     secrets:
       ACCOUNT_NUMBER: ${{ secrets[needs.SetUp.outputs.account_number_secret_name] }}
-    env:
-      GH_TOKEN: ${{ github.token }}
   # Deploy:
   #   needs: [SetUp, Validate]
   #   uses: tsamuel33/cloudformation-deployment-action/.github/workflows/test_and_deploy.yaml@feature/local-testing
