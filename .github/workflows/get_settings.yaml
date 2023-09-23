@@ -1,0 +1,17 @@
+name: Get Config Settings
+on:
+  push:
+    branches:
+      - docker-test
+
+permissions:
+  id-token: write
+  contents: read
+  pull-requests: write
+
+jobs:
+  SetUp:
+    uses: tsamuel33/cloudformation-deployment-action/.github/workflows/get_settings.yaml@feature/docker-action
+    with:
+      config_file_path: config
+      action_mode: docker
