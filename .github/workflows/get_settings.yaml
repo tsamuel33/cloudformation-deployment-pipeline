@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   SetUp:
-    uses: tsamuel33/cloudformation-deployment-action/.github/workflows/get_settings.yaml@feature/docker-action
+    uses: tsamuel33/cloudformation-deployment-action/.github/workflows/get_settings.yaml@docker-action
     with:
       config_file_path: config
       action_mode: docker
